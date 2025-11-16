@@ -1,57 +1,55 @@
-// ======================================
-//  🟦 MERCADOPAGO SDK (NUEVA VERSION)
-// ======================================
+// src/utils/mp.js
+import { MercadoPagoConfig, Preference } from "mercadopago";
 
-import MercadoPagoConfig, { Preference } from "mercadopago";
-import { ENV } from "../config/env.js";
-
-// Crear cliente MP
-const mp = new MercadoPagoConfig({
-  accessToken: ENV.MP_ACCESS_TOKEN
+/**
+ * Cliente MercadoPago usando el SDK NUEVO (2024+)
+ */
+const client = new MercadoPagoConfig({
+  accessToken: process.env.MP_ACCESS_TOKEN
 });
 
-// Crear preferencia
-export async function crearPreferencia({ titulo, monto, actaId, dni }) {
+/**
+ * Crear pago MercadoPago para un acta
+ */
+export async function crearPagoActa({ actaId, monto, descripcion }) {
   try {
-    const preference = new Preference(mp);
+    const preference = new Preference(client);
 
     const result = await preference.create({
       body: {
         items: [
           {
-            id: String(actaId),
-            title: titulo,
+            title: descripcion || `Pago Acta ${actaId}`,
             quantity: 1,
             unit_price: Number(monto)
           }
         ],
         back_urls: {
-          success: ENV.MP_SUCCESS_URL,
-          failure: ENV.MP_FAILURE_URL,
-          pending: ENV.MP_PENDING_URL
+          success: process.env.MP_SUCCESS_URL,
+          failure: process.env.MP_FAILURE_URL,
+          pending: process.env.MP_PENDING_URL
         },
         auto_return: "approved",
         metadata: {
           actaId,
-          dni
+          monto
         }
       }
     });
 
-    return result;
-  } catch (err) {
-    console.error("❌ Error creando preferencia MP:", err);
-    throw err;
-  }
-}
+    // Retornar formato esperado por tu controller
+    return {
+      ok: true,
+      id: result.id,
+      init_point: result.init_point,
+      raw: result
+    };
 
-// Webhook
-export function validarWebhook(req) {
-  try {
-    if (!req.body) return null;
-    return req.body;
-  } catch (err) {
-    console.error("❌ Error webhook MP:", err);
-    return null;
+  } catch (error) {
+    console.error("ERROR crearPagoActa:", error);
+    return {
+      ok: false,
+      error: error.message
+    };
   }
 }
