@@ -1,10 +1,10 @@
 // ============================================
-//  CARGA DEL .env (solo 1 vez en toda la app)
+//  CARGA DEL .env (solo 1 vez)
 // ============================================
 import "./config/env.js";
 
 // ============================================
-//  IMPORTS DEL SERVIDOR
+//  IMPORTS
 // ============================================
 import express from "express";
 import cors from "cors";
@@ -23,14 +23,14 @@ const app = express();
 //  MIDDLEWARES
 // ============================================
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || "*"
+  origin: process.env.CORS_ORIGIN || "*",
 }));
 
 app.use(express.json());
 app.use(morgan("dev"));
 
 // ============================================
-//  RUTA DE SALUD
+//  HEALTHCHECK
 // ============================================
 app.get("/api/health", (req, res) => {
   res.json({ ok: true, message: "API Ezeiza Actas OK" });
@@ -44,8 +44,8 @@ app.use("/api/pagos", pagosRouter);
 app.use("/api/uploads", uploadsRouter);
 app.use("/api/infracciones", infraccionesRouter);
 
-// SCRAPER
-app.use("/scrap", scrapRouter);
+// SCRAPER (CORRECTO)
+app.use("/api/scrap", scrapRouter);
 
 // ============================================
 //  SERVIDOR

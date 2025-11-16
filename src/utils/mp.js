@@ -1,38 +1,35 @@
-// src/utils/mp.js
+
 import mercadopago from "mercadopago";
-import { ENV } from "../config/env.js";
+import dotenv from "dotenv";
 
-if (ENV.MP_ACCESS_TOKEN) {
-  mercadopago.configure({
-    access_token: ENV.MP_ACCESS_TOKEN
-  });
-} else {
-  console.warn("[MP] Falta MP_ACCESS_TOKEN, módulo de pagos limitado.");
-}
+dotenv.config();
 
-export async function crearPreferenceActas({ titulo, monto, externalReference }) {
-  if (!ENV.MP_ACCESS_TOKEN) {
-    throw new Error("MP_ACCESS_TOKEN no configurado");
-  }
+mercadopago.configure({
+  access_token: process.env.MP_ACCESS_TOKEN
+});
 
+/**
+ * Crea una preferencia de pago para un acta
+ */
+export async function crearPagoActa({ actaId, monto, descripcion }) {
   const preference = {
     items: [
       {
-        title: titulo || "Pago de infracciones",
+        id: actaId.toString(),
+        title: descripcion || `Pago de acta #${actaId}`,
         quantity: 1,
         currency_id: "ARS",
         unit_price: Number(monto)
       }
     ],
-    external_reference: externalReference,
     back_urls: {
-      success: "https://ezeiza.netlify.app/pago-exitoso",
-      failure: "https://ezeiza.netlify.app/pago-error",
-      pending: "https://ezeiza.netlify.app/pago-pendiente"
+      success: process.env.MP_SUCCESS_URL,
+      pending: process.env.MP_PENDING_URL,
+      failure: process.env.MP_FAILURE_URL
     },
     auto_return: "approved"
   };
 
-  const response = await mercadopago.preferences.create(preference);
-  return response.body;
+  const result = await mercadopago.preferences.create(preference);
+  return result.body; // devuelve init_point, id, etc.
 }
