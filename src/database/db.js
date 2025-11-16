@@ -1,99 +1,87 @@
-// src/database/db.js
+// ======================================
+//  🔵 CONEXIÓN A POSTGRES
+// ======================================
 import pg from "pg";
-import { ENV } from "../config/env.js";
-
 const { Pool } = pg;
 
-// ======================================================
-//  🟢 CONEXIÓN A POSTGRES
-// ======================================================
 export const pool = new Pool({
-  connectionString: ENV.DB_URL,
-  ssl: ENV.DB_SSL ? { rejectUnauthorized: false } : false
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false }
 });
 
-// Helper universal
-export async function query(text, params) {
-  const result = await pool.query(text, params);
+// Helper de consulta
+export async function query(sql, params) {
+  const result = await pool.query(sql, params);
   return result.rows;
 }
 
-// ======================================================
-//  🔵 ACTAS – CONSULTAS PRINCIPALES
-// ======================================================
+// ======================================
+//  🟢 ACTAS (SCRAPER + SISTEMA)
+// ======================================
 
-// Por DNI / CUIT / DOCUMENTO
-export async function getActasByDocumento(documento) {
-  const sql = `
-    SELECT *
-    FROM actas
-    WHERE documento = $1
-    ORDER BY fecha DESC;
-  `;
-  return await query(sql, [documento]);
-}
-
-// Por patente / dominio
-export async function getActasByPatente(patente) {
-  const sql = `
-    SELECT *
-    FROM actas
-    WHERE patente = $1
-    ORDER BY fecha DESC;
-  `;
-  return await query(sql, [patente]);
-}
-
-// Insertar o actualizar acta externa automáticamente
-export async function upsertActaExterna({
-  numero_acta,
-  documento,
-  patente,
+// Insertar ACTA completa desde scraper
+export async function insertActa({
+  acta,
   fecha,
-  monto,
-  estado,
-  descripcion,
-  origen
+  hora,
+  dominio,
+  marca,
+  modelo,
+  lugar,
+  imagen_path,
+  video_path,
+  velocidad_registrada,
+  velocidad_maxima
 }) {
   const sql = `
     INSERT INTO actas (
-      numero_acta,
-      documento,
-      patente,
+      acta,
       fecha,
-      monto,
-      estado,
-      descripcion,
-      origen
+      hora,
+      dominio,
+      marca,
+      modelo,
+      lugar,
+      imagen_path,
+      video_path,
+      velocidad_registrada,
+      velocidad_maxima,
+      fecha_creacion
     )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-    ON CONFLICT (numero_acta)
-    DO UPDATE SET
-      documento = EXCLUDED.documento,
-      patente   = EXCLUDED.patente,
-      fecha     = EXCLUDED.fecha,
-      monto     = EXCLUDED.monto,
-      estado    = EXCLUDED.estado,
-      descripcion = EXCLUDED.descripcion,
-      origen    = EXCLUDED.origen
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,NOW())
     RETURNING *;
   `;
 
-  return await query(sql, [
-    numero_acta,
-    documento,
-    patente,
+  const params = [
+    acta,
     fecha,
-    monto,
-    estado,
-    descripcion,
-    origen
-  ]);
+    hora,
+    dominio,
+    marca,
+    modelo,
+    lugar,
+    imagen_path,
+    video_path,
+    velocidad_registrada,
+    velocidad_maxima
+  ];
+
+  const rows = await query(sql, params);
+  return rows[0];
 }
 
-// ======================================================
-//  💳 PAGOS (MercadoPago)
-// ======================================================
+// Registrar error del scraper
+export async function logScraperError(error) {
+  const sql = `
+    INSERT INTO scraper_logs (error, fecha)
+    VALUES ($1, NOW());
+  `;
+  return await query(sql, [error]);
+}
+
+// ======================================
+//  🟢 PAGOS MERCADOPAGO
+// ======================================
 
 // Crear pago pendiente
 export async function createPagoPendiente({ actaId, dni, monto, mpPreferenceId, mpRaw }) {
@@ -113,7 +101,7 @@ export async function createPagoPendiente({ actaId, dni, monto, mpPreferenceId, 
   return await query(sql, [actaId, dni, monto, mpPreferenceId, mpRaw]);
 }
 
-// Último pago pendiente por acta
+// Obtener último pago pendiente por acta
 export async function getPagoPendienteByActa(actaId) {
   const sql = `
     SELECT *
@@ -126,7 +114,7 @@ export async function getPagoPendienteByActa(actaId) {
   return rows[0] || null;
 }
 
-// Historial de pagos por DNI
+// Historial pagos por DNI
 export async function getPagosByDni(dni) {
   const sql = `
     SELECT *
@@ -137,7 +125,7 @@ export async function getPagosByDni(dni) {
   return await query(sql, [dni]);
 }
 
-// Registrar payload completo del webhook
+// Guardar logs de MercadoPago
 export async function logMPNotification(payload) {
   const sql = `
     INSERT INTO mp_logs (payload, fecha)
@@ -146,7 +134,7 @@ export async function logMPNotification(payload) {
   return await query(sql, [payload]);
 }
 
-// Actualizar pago desde webhook MP
+// Actualizar pago desde webhook
 export async function updatePagoFromWebhook({ mpPreferenceId, mpStatus, mpPaymentId, mpRaw }) {
   const sql = `
     UPDATE pagos
