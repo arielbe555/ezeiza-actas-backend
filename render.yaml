@@ -3,7 +3,6 @@ services:
     name: ezeiza-actas-backend
     env: node
     plan: free
-    buildCommand: "npm install"
-    startCommand: "npm start"
-    autoDeploy: true
     rootDir: .
+    buildCommand: "npm install"
+    startCommand: "node server.js"
