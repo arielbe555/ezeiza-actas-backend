@@ -31,9 +31,11 @@ export async function buscarUsuarioPorDocumento({ dni, cuit }) {
 
     const res = await client.query(query, values);
     return res.rows[0] || null;
+
   } catch (err) {
     logger.error("Error buscando usuario por documento:", err);
     throw err;
+
   } finally {
     client.release();
   }
