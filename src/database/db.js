@@ -19,7 +19,7 @@ export async function query(text, params) {
 }
 
 // ======================================
-//  CONSULTAS LOCALES
+//  🔵 CONSULTAS DE ACTAS
 // ======================================
 
 // Buscar actas por DNI/CUIT/DOCUMENTO
@@ -44,9 +44,7 @@ export async function getActasByPatente(patente) {
   return await query(sql, [patente]);
 }
 
-// ======================================
-//  UPSERT DE ACTAS EXTERNAS (Infratrack)
-// ======================================
+// Insertar o actualizar actas externas
 export async function upsertActaExterna({
   numero_acta,
   documento,
@@ -72,12 +70,12 @@ export async function upsertActaExterna({
     ON CONFLICT (numero_acta)
     DO UPDATE SET
       documento = EXCLUDED.documento,
-      patente   = EXCLUDED.patente,
-      fecha     = EXCLUDED.fecha,
-      monto     = EXCLUDED.monto,
-      estado    = EXCLUDED.estado,
+      patente = EXCLUDED.patente,
+      fecha = EXCLUDED.fecha,
+      monto = EXCLUDED.monto,
+      estado = EXCLUDED.estado,
       descripcion = EXCLUDED.descripcion,
-      origen    = EXCLUDED.origen
+      origen = EXCLUDED.origen
     RETURNING *;
   `;
 
@@ -91,4 +89,73 @@ export async function upsertActaExterna({
     descripcion,
     origen
   ]);
+}
+
+// ======================================
+//  🟢 PAGOS
+// ======================================
+
+// Crear pago pendiente
+export async function createPagoPendiente({
+  acta_id,
+  monto,
+  medio_pago
+}) {
+  const sql = `
+    INSERT INTO pagos (
+      acta_id,
+      monto,
+      medio_pago,
+      estado,
+      fecha_creacion
+    )
+    VALUES ($1, $2, $3, 'pendiente', NOW())
+    RETURNING *;
+  `;
+  return await query(sql, [acta_id, monto, medio_pago]);
+}
+
+// Actualizar pago como aprobado
+export async function marcarPagoAprobado(pago_id) {
+  const sql = `
+    UPDATE pagos
+    SET estado = 'aprobado',
+        fecha_aprobacion = NOW()
+    WHERE id = $1
+    RETURNING *;
+  `;
+  return await query(sql, [pago_id]);
+}
+
+// Consultar pagos por acta
+export async function getPagosByActa(acta_id) {
+  const sql = `
+    SELECT *
+    FROM pagos
+    WHERE acta_id = $1
+    ORDER BY fecha_creacion DESC;
+  `;
+  return await query(sql, [acta_id]);
+}
+
+// ======================================
+//  🟣 CONCILIACIÓN BANCARIA
+// ======================================
+export async function registrarConciliacion({
+  pago_id,
+  referencia,
+  importe,
+  fecha
+}) {
+  const sql = `
+    INSERT INTO conciliaciones (
+      pago_id,
+      referencia,
+      importe,
+      fecha
+    )
+    VALUES ($1, $2, $3, $4)
+    RETURNING *;
+  `;
+  return await query(sql, [pago_id, referencia, importe, fecha]);
 }
