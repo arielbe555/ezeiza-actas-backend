@@ -1,3 +1,4 @@
+// TEST FIX - 16/11/2025
 import pg from "pg";
 const { Pool } = pg;
 
@@ -160,3 +161,6 @@ export async function getLastActa() {
   const rows = await query(sql);
   return rows[0] || null;
 }
+git add src/src/database/db.js
+git commit -m "fix: db.js completo con todas las exportaciones"
+git push origin main
