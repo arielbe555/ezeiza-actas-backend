@@ -1,13 +1,20 @@
+// =====================================================
+//  CONTROLADOR DE PAGOS – SISTEMA CESA
+// =====================================================
+
 import { crearPagoActa } from "../utils/mp.js";
+
 import {
   createPagoPendiente,
   updatePagoFromWebhook,
-  getPagoByActa,
+  getPagoPendienteByActa,
   getPagosByDni,
   logMPNotification
 } from "../database/db.js";
 
-// Crear preferencia de pago para un acta
+// =====================================================
+//  CREAR PREFERENCIA DE PAGO PARA UN ACTA
+// =====================================================
 export async function crearPreferenciaPago(req, res) {
   try {
     const { actaId, monto, dni } = req.body;
@@ -26,7 +33,7 @@ export async function crearPreferenciaPago(req, res) {
 
     const pago = await createPagoPendiente({
       actaId,
-      dni,
+      dni: dni || null,
       monto,
       mpPreferenceId: pref.id,
       mpRaw
@@ -48,22 +55,25 @@ export async function crearPreferenciaPago(req, res) {
   }
 }
 
-// Webhook que llama MercadoPago
+// =====================================================
+//  WEBHOOK – MERCADOPAGO
+// =====================================================
 export async function webhookMP(req, res) {
   try {
     const data = req.body;
 
+    // Log de auditoría
     await logMPNotification(JSON.stringify(data));
 
     const tipo = data.type || data.action;
 
     if (tipo === "payment" || tipo === "created" || tipo === "updated") {
-      const mpPaymentId = data.data && (data.data.id || data.data.payment_id);
 
-      // NOTA: en modo PRO se debería consultar el pago a MP
-      // para obtener status y preference_id correctos.
-      // Acá hacemos una versión directa.
+      const mpPaymentId =
+        data.data && (data.data.id || data.data.payment_id);
+
       const mpStatus = data.status || "unknown";
+
       const mpPreferenceId =
         data.data && (data.data.preference_id || data.data.id || null);
 
@@ -84,24 +94,32 @@ export async function webhookMP(req, res) {
   }
 }
 
-// Consultar estado de pago por acta
+// =====================================================
+//  CONSULTAR ESTADO DE PAGO POR ACTA
+// =====================================================
 export async function estadoPagoPorActa(req, res) {
   try {
     const { actaId } = req.params;
-    const pago = await getPagoByActa(Number(actaId));
+    const pago = await getPagoPendienteByActa(Number(actaId));
 
     if (!pago) {
-      return res.status(404).json({ ok: false, message: "Sin pagos para esta acta" });
+      return res.status(404).json({
+        ok: false,
+        message: "Sin pagos pendientes registrados para esta acta"
+      });
     }
 
     return res.json({ ok: true, pago });
+
   } catch (err) {
     console.error("Error estadoPagoPorActa:", err);
     return res.status(500).json({ ok: false, error: "Error consultando pago" });
   }
 }
 
-// Historial de pagos por DNI
+// =====================================================
+//  HISTORIAL DE PAGOS POR DNI
+// =====================================================
 export async function historialPagosPorDni(req, res) {
   try {
     const { dni } = req.query;
@@ -112,6 +130,7 @@ export async function historialPagosPorDni(req, res) {
 
     const pagos = await getPagosByDni(dni);
     return res.json({ ok: true, cantidad: pagos.length, pagos });
+
   } catch (err) {
     console.error("Error historialPagosPorDni:", err);
     return res.status(500).json({ ok: false, error: "Error consultando pagos" });
