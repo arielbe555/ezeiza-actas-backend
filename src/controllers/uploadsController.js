@@ -1,30 +1,44 @@
-
-// ============================================
-//  CONTROLADOR DE SUBIDAS (CLOUDINARY)
-// ============================================
-
 import { v2 as cloudinary } from "cloudinary";
+import fs from "fs";
 
-// Configurar Cloudinary desde variables de entorno
+// Config Cloudinary (Render toma variables del .env)
 cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD,
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_SECRET,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-// Convierte buffer a base64
-function bufferToBase64(fileBuffer) {
-  return `data:${fileBuffer.mimetype};base64,${fileBuffer.buffer.toString("base64")}`;
-}
+// ============================================
+// SUBIR FOTO / VIDEO DE ACTA
+// ============================================
+export const procesarUploads = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: "No se envió ningún archivo" });
+    }
 
-export const subirArchivo = async (file) => {
-  const base64 = bufferToBase64(file);
+    const archivo = req.file.path;
 
-  const result = await cloudinary.uploader.upload(base64, {
-    folder: "ezeiza/uploads",
-    resource_type: "image",
-  });
+    const subida = await cloudinary.uploader.upload(archivo, {
+      folder: "actas_ezeiza",
+      resource_type: "auto",
+    });
 
-  return result.secure_url;
+    // Borrar archivo temporal
+    fs.unlinkSync(archivo);
+
+    return res.json({
+      ok: true,
+      url: subida.secure_url,
+      public_id: subida.public_id,
+    });
+
+  } catch (err) {
+    console.error("❌ Error subiendo archivo:", err);
+    return res.status(500).json({
+      ok: false,
+      error: "Error subiendo archivo a Cloudinary",
+    });
+  }
 };
 
