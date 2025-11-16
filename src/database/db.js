@@ -147,3 +147,16 @@ export async function updatePagoFromWebhook({ mpPreferenceId, mpStatus, mpPaymen
   `;
   return await query(sql, [mpPreferenceId, mpStatus, mpPaymentId, mpRaw]);
 }
+// ======================================
+//  🟢 ACTAS - Buscar por documento
+// ======================================
+export async function getActasByDocumento(documento) {
+  const sql = `
+    SELECT *
+    FROM actas
+    WHERE documento = $1
+    ORDER BY fecha_creacion DESC;
+  `;
+  return await query(sql, [documento]);
+}
+
