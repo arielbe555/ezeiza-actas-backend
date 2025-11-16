@@ -8,13 +8,14 @@ import * as cheerio from "cheerio";
 import { v2 as cloudinary } from "cloudinary";
 import { insertActa, logScraperError } from "../database/db.js";
 
-// Configurar Cloudinary con variables de entorno
+// Configuración Cloudinary
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD,
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_SECRET
 });
 
+// Estado del scraper
 let state = {
   running: false,
   from: 0,
@@ -45,60 +46,71 @@ async function subirACloudinary(url, type, id) {
 }
 
 /**
- * Proceso de scraping de un solo acta
+ * Procesa una ACTA
  */
-async function procesarActa(id) {
+async function procesarActa(actaId) {
   try {
-    const url = `https://infratrack.com.ar/ezeiza/buscar?acta=${id}`;
-    console.log(`[SCRAPER] Buscando acta ${id}...`);
+    const url = `https://infratrack.com.ar/ezeiza/buscar?acta=${actaId}`;
+    console.log(`[SCRAPER] Buscando acta ${actaId}...`);
 
     const res = await axios.get(url, { timeout: 10000 });
     const $ = cheerio.load(res.data);
 
-    const patente = $("#patente").text().trim();
+    // Extraer datos reales del HTML (nombres verdaderos)
+    const dominio = $("#patente").text().trim();
     const fecha = $("#fecha").text().trim();
+    const hora = $("#hora").text().trim();
+    const marca = $("#marca").text().trim();
+    const modelo = $("#modelo").text().trim();
+    const lugar = $("#lugar").text().trim();
+    const velocidad_registrada = $("#vel_reg").text().trim();
+    const velocidad_maxima = $("#vel_max").text().trim();
+
     const fotoUrl = $("#foto").attr("src");
     const videoUrl = $("#video").attr("src");
 
-    if (!patente) {
-      console.log(`[SCRAPER] Acta ${id} inexistente.`);
+    if (!dominio) {
+      console.log(`[SCRAPER] Acta ${actaId} inexistente`);
       return;
     }
 
-    // Subir foto y video a Cloudinary
+    // Subida de medios
     let fotoCloud = null;
-    if (fotoUrl) {
-      fotoCloud = await subirACloudinary(fotoUrl, "fotos", id);
-    }
+    if (fotoUrl) fotoCloud = await subirACloudinary(fotoUrl, "fotos", actaId);
 
     let videoCloud = null;
-    if (videoUrl) {
-      videoCloud = await subirACloudinary(videoUrl, "videos", id);
-    }
+    if (videoUrl) videoCloud = await subirACloudinary(videoUrl, "videos", actaId);
 
-    // Guardar en DB
+    // Guardado en DB usando la firma EXACTA del insertActa real
     await insertActa({
-      id,
-      patente,
+      acta: actaId,
       fecha,
-      foto: fotoCloud,
-      video: videoCloud
+      hora,
+      dominio,
+      marca,
+      modelo,
+      lugar,
+      imagen_path: fotoCloud,
+      video_path: videoCloud,
+      velocidad_registrada,
+      velocidad_maxima
     });
 
-    state.last = id;
+    // Estado interno
+    state.last = actaId;
     state.processed++;
 
   } catch (err) {
-    console.error(`[ERROR] Acta ${id}:`, err.message);
+    console.error(`[ERROR] Acta ${actaId}:`, err.message);
 
-    state.errors.push({ id, error: err.message });
+    state.errors.push({ acta: actaId, error: err.message });
 
-    await logScraperError(id, err.message);
+    await logScraperError(`[ACTA ${actaId}] ${err.message}`);
   }
 }
 
 /**
- * Inicio del scraping PRO
+ * Inicio del scraping
  */
 export async function start(from = 30000, to = 30100) {
   if (state.running) return;
@@ -113,7 +125,7 @@ export async function start(from = 30000, to = 30100) {
 
   for (let id = from; id <= to; id++) {
     await procesarActa(id);
-    await delay(800);  // delay seguro para evitar bloqueo de Infratrack
+    await delay(800);
   }
 
   state.running = false;
@@ -123,4 +135,3 @@ export async function start(from = 30000, to = 30100) {
 export function status() {
   return state;
 }
-
