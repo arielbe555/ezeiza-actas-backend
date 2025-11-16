@@ -65,6 +65,20 @@ export async function getLastActa() {
   const r = await query(sql);
   return r[0] || null;
 }
+// =====================================================
+//  ACTAS – OBTENER POR DOCUMENTO / PATENTE
+// =====================================================
+export async function getActasByDocumento(documento) {
+  const sql = `
+    SELECT *
+    FROM actas
+    WHERE dni = $1
+       OR cuit = $1
+       OR patente = $1
+    ORDER BY fecha DESC
+  `;
+  return await query(sql, [documento]);
+}
 
 // =====================================================
 //  PAGOS – CREAR PENDIENTE
