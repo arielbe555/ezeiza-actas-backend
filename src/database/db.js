@@ -1,99 +1,84 @@
-// ======================================
-//  🔵 CONEXIÓN A POSTGRES
-// ======================================
 import pg from "pg";
 const { Pool } = pg;
 
+// =============================
+//  POOL
+// =============================
 export const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString: process.env.DB_URL,
   ssl: { rejectUnauthorized: false }
 });
 
-// Helper de consulta
-export async function query(sql, params) {
-  const result = await pool.query(sql, params);
-  return result.rows;
+export async function query(text, params) {
+  const res = await pool.query(text, params);
+  return res.rows;
 }
 
-// ======================================
-//  🟢 ACTAS (SCRAPER + SISTEMA)
-// ======================================
+// =============================
+//  🔵 ACTAS LOCALES
+// =============================
+export async function getActasByDocumento(documento) {
+  const sql = `
+    SELECT *
+    FROM actas
+    WHERE documento = $1
+    ORDER BY fecha DESC;
+  `;
+  return await query(sql, [documento]);
+}
 
-// Insertar ACTA completa desde scraper
-export async function insertActa({
-  acta,
+export async function getActasByPatente(patente) {
+  const sql = `
+    SELECT *
+    FROM actas
+    WHERE patente = $1
+    ORDER BY fecha DESC;
+  `;
+  return await query(sql, [patente]);
+}
+
+export async function upsertActaExterna({
+  numero_acta,
+  documento,
+  patente,
   fecha,
-  hora,
-  dominio,
-  marca,
-  modelo,
-  lugar,
-  imagen_path,
-  video_path,
-  velocidad_registrada,
-  velocidad_maxima
+  monto,
+  estado,
+  descripcion,
+  origen
 }) {
   const sql = `
     INSERT INTO actas (
-      acta,
-      fecha,
-      hora,
-      dominio,
-      marca,
-      modelo,
-      lugar,
-      imagen_path,
-      video_path,
-      velocidad_registrada,
-      velocidad_maxima,
-      fecha_creacion
-    )
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,NOW())
+      numero_acta, documento, patente, fecha,
+      monto, estado, descripcion, origen
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+    ON CONFLICT (numero_acta)
+    DO UPDATE SET
+      documento = EXCLUDED.documento,
+      patente = EXCLUDED.patente,
+      fecha = EXCLUDED.fecha,
+      monto = EXCLUDED.monto,
+      estado = EXCLUDED.estado,
+      descripcion = EXCLUDED.descripcion,
+      origen = EXCLUDED.origen
     RETURNING *;
   `;
 
-  const params = [
-    acta,
-    fecha,
-    hora,
-    dominio,
-    marca,
-    modelo,
-    lugar,
-    imagen_path,
-    video_path,
-    velocidad_registrada,
-    velocidad_maxima
-  ];
-
-  const rows = await query(sql, params);
-  return rows[0];
+  return await query(sql, [
+    numero_acta, documento, patente, fecha,
+    monto, estado, descripcion, origen
+  ]);
 }
 
-// Registrar error del scraper
-export async function logScraperError(error) {
-  const sql = `
-    INSERT INTO scraper_logs (error, fecha)
-    VALUES ($1, NOW());
-  `;
-  return await query(sql, [error]);
-}
-
-// ======================================
-//  🟢 PAGOS MERCADOPAGO
-// ======================================
-
-// Crear pago pendiente
+// =============================
+//  🟢 PAGOS
+// =============================
 export async function createPagoPendiente({ actaId, dni, monto, mpPreferenceId, mpRaw }) {
   const sql = `
     INSERT INTO pagos (
-      acta_id,
-      dni,
-      monto,
-      mp_preference_id,
-      mp_raw,
-      estado,
-      fecha_creacion
+      acta_id, dni, monto,
+      mp_preference_id, mp_raw,
+      estado, fecha_creacion
     )
     VALUES ($1,$2,$3,$4,$5,'pendiente',NOW())
     RETURNING *;
@@ -101,7 +86,6 @@ export async function createPagoPendiente({ actaId, dni, monto, mpPreferenceId, 
   return await query(sql, [actaId, dni, monto, mpPreferenceId, mpRaw]);
 }
 
-// Obtener último pago pendiente por acta
 export async function getPagoPendienteByActa(actaId) {
   const sql = `
     SELECT *
@@ -114,7 +98,6 @@ export async function getPagoPendienteByActa(actaId) {
   return rows[0] || null;
 }
 
-// Historial pagos por DNI
 export async function getPagosByDni(dni) {
   const sql = `
     SELECT *
@@ -125,16 +108,6 @@ export async function getPagosByDni(dni) {
   return await query(sql, [dni]);
 }
 
-// Guardar logs de MercadoPago
-export async function logMPNotification(payload) {
-  const sql = `
-    INSERT INTO mp_logs (payload, fecha)
-    VALUES ($1, NOW());
-  `;
-  return await query(sql, [payload]);
-}
-
-// Actualizar pago desde webhook
 export async function updatePagoFromWebhook({ mpPreferenceId, mpStatus, mpPaymentId, mpRaw }) {
   const sql = `
     UPDATE pagos
@@ -147,16 +120,43 @@ export async function updatePagoFromWebhook({ mpPreferenceId, mpStatus, mpPaymen
   `;
   return await query(sql, [mpPreferenceId, mpStatus, mpPaymentId, mpRaw]);
 }
-// ======================================
-//  🟢 ACTAS - Buscar por documento
-// ======================================
-export async function getActasByDocumento(documento) {
+
+export async function logMPNotification(payload) {
   const sql = `
-    SELECT *
-    FROM actas
-    WHERE documento = $1
-    ORDER BY fecha_creacion DESC;
+    INSERT INTO mp_logs (payload, fecha)
+    VALUES ($1, NOW());
   `;
-  return await query(sql, [documento]);
+  return await query(sql, [payload]);
 }
 
+// =============================
+//  🟣 SCRAPER
+// =============================
+export async function insertActa({ id, patente, fecha, foto, video }) {
+  const sql = `
+    INSERT INTO scraper_actas (acta_id, patente, fecha, foto, video)
+    VALUES ($1,$2,$3,$4,$5)
+    ON CONFLICT (acta_id) DO NOTHING
+    RETURNING *;
+  `;
+  return await query(sql, [id, patente, fecha, foto, video]);
+}
+
+export async function logScraperError(id, error) {
+  const sql = `
+    INSERT INTO scraper_errors (acta_id, error, fecha)
+    VALUES ($1,$2,NOW());
+  `;
+  return await query(sql, [id, error]);
+}
+
+export async function getLastActa() {
+  const sql = `
+    SELECT acta_id
+    FROM scraper_actas
+    ORDER BY acta_id DESC
+    LIMIT 1;
+  `;
+  const rows = await query(sql);
+  return rows[0] || null;
+}
