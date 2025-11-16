@@ -1,14 +1,25 @@
 // src/controllers/infraccionesController.js
+
 import { ENV } from "../config/env.js";
 import {
   getActasByDocumento,
   getActasByPatente,
-  upsertActaExterna
+  upsertActaExterna,
+  insertarActaLocal
 } from "../database/db.js";
+
 import {
   consultarInfratrack,
   mapInfraccionesExternas
 } from "../utils/infratrackClient.js";
+
+import { generarActaPDF } from "../services/pdfService.js";   // ⬅ AGREGADO
+import axios from "axios";                                    // ⬅ AGREGADO
+
+
+/* ============================================================
+    🔎  CONTROLADOR ORIGINAL — CONSULTAR INFRACCIONES
+   ============================================================ */
 
 function detectarConsulta(query) {
   const { dni, cuit, documento, dominio, patente } = query;
@@ -47,7 +58,7 @@ export async function obtenerInfracciones(req, res) {
       actasLocales = await getActasByPatente(valor);
     }
 
-    // 2) Infratrack externo
+    // 2) Consulta externa a Infratrack
     let metaExterna = null;
     let actasExternas = [];
 
@@ -62,7 +73,7 @@ export async function obtenerInfracciones(req, res) {
       metaExterna = meta;
       actasExternas = mapInfraccionesExternas(infracciones);
 
-      // Opcional: ir consolidando en tu base propia (sin bloquear la respuesta)
+      // Consolidación (no bloquea respuesta)
       for (const acta of actasExternas) {
         upsertActaExterna({
           numero_acta: acta.numero_acta,
@@ -108,3 +119,84 @@ export async function obtenerInfracciones(req, res) {
 }
 
 
+/* ============================================================
+    📄  NUEVO CONTROLADOR — GENERAR ACTA + PDF (ENTREGA 4)
+   ============================================================ */
+
+export const crearInfraccion = async (req, res) => {
+  try {
+    const {
+      patente,
+      velocidad,
+      velocidadPermitida,
+      lat,
+      lng,
+      foto,
+      camaraId
+    } = req.body;
+
+    if (!patente) return res.status(400).json({ error: "Patente requerida." });
+    if (!velocidad || !velocidadPermitida) {
+      return res.status(400).json({ error: "Velocidades inválidas." });
+    }
+    if (!lat || !lng) return res.status(400).json({ error: "Coordenadas inválidas." });
+    if (!foto) return res.status(400).json({ error: "Foto requerida (base64)." });
+    if (!camaraId) return res.status(400).json({ error: "camaraId requerido." });
+
+    // Obtener dirección real
+    let direccion = "Dirección no disponible";
+    try {
+      const geo = await axios.get(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`,
+        { headers: { "User-Agent": "CESA Infracciones" } }
+      );
+      direccion = geo.data.display_name || direccion;
+    } catch (e) {
+      console.log("⚠ Reverse geocoding error:", e.message);
+    }
+
+    // ID único del acta
+    const idActa = `CESA-${Date.now()}`;
+
+    // Guardar en BD propia
+    await insertarActaLocal({
+      idActa,
+      patente,
+      velocidad,
+      velocidadPermitida,
+      lat,
+      lng,
+      direccion,
+      camaraId
+    });
+
+    // Generar PDF completo
+    const pdfPath = await generarActaPDF({
+      idActa,
+      patente,
+      velocidad,
+      velocidadPermitida,
+      direccion,
+      lat,
+      lng,
+      fotoBase64: foto,
+      camaraId
+    });
+
+    return res.json({
+      ok: true,
+      mensaje: "Acta generada exitosamente.",
+      idActa,
+      pdf: pdfPath,
+      direccion
+    });
+
+  } catch (error) {
+    console.error("[CREAR INFRACCION] ERROR:", error);
+    return res.status(500).json({
+      ok: false,
+      error: "Error al generar el acta",
+      detalle: error.message
+    });
+  }
+};

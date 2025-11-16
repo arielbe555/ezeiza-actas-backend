@@ -15,8 +15,9 @@ export async function query(text, params) {
   return res.rows;
 }
 
+
 // =============================
-//  🔵 ACTAS LOCALES
+//  🔵 ACTAS LOCALES (CONSULTA)
 // =============================
 export async function getActasByDocumento(documento) {
   const sql = `
@@ -38,6 +39,54 @@ export async function getActasByPatente(patente) {
   return await query(sql, [patente]);
 }
 
+
+// =============================
+//  🟢 ACTAS LOCALES (INSERT NUEVO)
+//    → Necesario para generar PDF
+// =============================
+export async function insertarActaLocal({
+  idActa,
+  patente,
+  velocidad,
+  velocidadPermitida,
+  lat,
+  lng,
+  direccion,
+  camaraId
+}) {
+  const sql = `
+    INSERT INTO actas (
+      numero_acta,
+      patente,
+      velocidad,
+      velocidad_permitida,
+      lat,
+      lng,
+      direccion,
+      camara_id,
+      origen,
+      fecha
+    )
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'local',NOW())
+    RETURNING *;
+  `;
+
+  return await query(sql, [
+    idActa,
+    patente,
+    velocidad,
+    velocidadPermitida,
+    lat,
+    lng,
+    direccion,
+    camaraId
+  ]);
+}
+
+
+// =============================
+//  🔵 ACTAS EXTERNAS
+// =============================
 export async function upsertActaExterna({
   numero_acta,
   documento,
@@ -70,6 +119,7 @@ export async function upsertActaExterna({
     monto, estado, descripcion, origen
   ]);
 }
+
 
 // =============================
 //  🟢 PAGOS
@@ -130,6 +180,7 @@ export async function logMPNotification(payload) {
   return await query(sql, [payload]);
 }
 
+
 // =============================
 //  🟣 SCRAPER
 // =============================
@@ -161,4 +212,3 @@ export async function getLastActa() {
   const rows = await query(sql);
   return rows[0] || null;
 }
-
