@@ -1,19 +1,10 @@
-import express from "express";
-import {
-  consultarPorDominio,
-  consultarPorDni,
-  consultarPorCuit,
-  listarInfracciones,
-  crearInfraccion
-} from "../controllers/infraccionesController.js";
+// src/routes/infraccionesRoutes.js
+import { Router } from "express";
+import { obtenerInfracciones } from "../controllers/infraccionesController.js";
 
-const router = express.Router();
+const router = Router();
 
-router.get("/", listarInfracciones);
-router.post("/", crearInfraccion);
-
-router.get("/dominio/:dominio", consultarPorDominio);
-router.get("/dni/:dni", consultarPorDni);
-router.get("/cuit/:cuit", consultarPorCuit);
+// GET /api/infracciones?dni=...  o  ?dominio=...
+router.get("/", obtenerInfracciones);
 
 export default router;

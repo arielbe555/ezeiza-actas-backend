@@ -1,55 +1,52 @@
-import { MercadoPagoConfig, Preference } from "mercadopago";
+// src/controllers/pagosController.js
+import { crearPreferenceActas } from "../utils/mp.js";
 
-// ❤️ Si existe la variable, no mostramos error falso
-if (!process.env.MP_ACCESS_TOKEN || process.env.MP_ACCESS_TOKEN.trim() === "") {
-  console.warn("⚠️ MP_ACCESS_TOKEN no configurado.");
-}
-
-const client = new MercadoPagoConfig({
-  accessToken: process.env.MP_ACCESS_TOKEN,
-});
-
-export const crearPago = async (req, res) => {
+/**
+ * POST /api/pagos/preference
+ * body: { actas: [{numero_acta, monto}], documento?, dominio? }
+ */
+export async function crearPreference(req, res) {
   try {
-    const { monto, descripcion } = req.body;
+    const { actas, documento, dominio } = req.body;
 
-    if (!monto) {
-      return res.status(400).json({ error: "El monto es obligatorio" });
+    if (!Array.isArray(actas) || !actas.length) {
+      return res.status(400).json({
+        ok: false,
+        error: "Debes enviar un array 'actas' con numero_acta y monto"
+      });
     }
 
-    const preference = new Preference(client);
+    const total = actas.reduce(
+      (acc, a) => acc + Number(a.monto || a.monto_total || 0),
+      0
+    );
 
-    const preferenceData = {
-      items: [
-        {
-          title: descripcion || "Pago Ezeiza",
-          quantity: 1,
-          currency_id: "ARS",
-          unit_price: Number(monto),
-        },
-      ],
-      auto_return: "approved",
-      back_urls: {
-        success: "https://tuweb.com/success",
-        failure: "https://tuweb.com/failure",
-        pending: "https://tuweb.com/pending",
-      }
-    };
+    const titulo = `Pago de ${actas.length} actas`;
+    const externalReference = JSON.stringify({
+      documento,
+      dominio,
+      actas: actas.map((a) => a.numero_acta)
+    });
 
-    const result = await preference.create({ body: preferenceData });
+    const pref = await crearPreferenceActas({
+      titulo,
+      monto: total,
+      externalReference
+    });
 
     return res.json({
-      status: "ok",
-      init_point: result.init_point,
-      id: result.id,
+      ok: true,
+      preference_id: pref.id,
+      init_point: pref.init_point,
+      sandbox_init_point: pref.sandbox_init_point
     });
-
-  } catch (error) {
-    console.error("Error en crearPago:", error);
-    res.status(500).json({
-      error: "Error al generar el pago",
-      detalle: error.message,
+  } catch (err) {
+    console.error("[PAGOS] Error creando preference:", err);
+    return res.status(500).json({
+      ok: false,
+      error: "No se pudo crear la orden de pago"
     });
   }
-};
+}
+
 

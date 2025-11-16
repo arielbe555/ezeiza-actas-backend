@@ -1,27 +1,26 @@
-/**
- * CARGA CORRECTA DEL .env EN WINDOWS + ES MODULES
- */
-
+// src/config/env.js
 import dotenv from "dotenv";
-import path from "path";
-import { fileURLToPath } from "url";
+dotenv.config();
 
-// Obtener ruta real del archivo actual
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const required = (name) => {
+  const value = process.env[name];
+  if (!value) {
+    console.warn(`[ENV] Falta variable ${name} (usando valor por defecto si corresponde)`);
+  }
+  return value;
+};
 
-// Cargar .env desde la raíz del proyecto
-dotenv.config({
-  path: path.resolve(__dirname, "../../.env")
-});
+export const ENV = {
+  NODE_ENV: process.env.NODE_ENV || "development",
+  PORT: process.env.PORT || 10000,
+  DATABASE_URL: required("DATABASE_URL"),
+  // Render normalmente requiere SSL parcial
+  DB_SSL_REJECT_UNAUTHORIZED: process.env.DB_SSL_REJECT_UNAUTHORIZED === "true",
+  INFRA_EZEIZA_URL:
+    process.env.INFRA_EZEIZA_URL ||
+    "https://consulta-ezeiza.infratrack.com.ar/infracciones/a-pagar",
+  INFRA_TIPO_DOMINIO: process.env.INFRA_TIPO_DOMINIO || "DOMINIO",
+  INFRA_TIPO_DOCUMENTO: process.env.INFRA_TIPO_DOCUMENTO || "DOCUMENTO",
+  MP_ACCESS_TOKEN: required("MP_ACCESS_TOKEN")
+};
 
-// DEBUG (esto te dice si cargó bien)
-console.log("======================================");
-console.log("🔧 ENV CARGADO:");
-console.log("🟦 DATABASE_URL:", !!process.env.DATABASE_URL);
-console.log("🟩 MP_ACCESS_TOKEN:", !!process.env.MP_ACCESS_TOKEN);
-console.log("🟨 CLOUDINARY_URL:", !!process.env.CLOUDINARY_URL);
-console.log("======================================\n");
-
-// Exportar variables para usar en toda la app
-export default process.env;

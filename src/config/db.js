@@ -1,46 +1,27 @@
+// src/config/db.js
 import pg from "pg";
+import { ENV } from "./env.js";
+
 const { Pool } = pg;
 
-// Conexión con Render
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false } // Render requiere SSL
+if (!ENV.DATABASE_URL) {
+  console.error(
+    "[DB] No se encontró DATABASE_URL. Configurala en Render o en .env"
+  );
+}
+
+export const pool = new Pool({
+  connectionString: ENV.DATABASE_URL,
+  ssl: ENV.DATABASE_URL
+    ? { rejectUnauthorized: ENV.DB_SSL_REJECT_UNAUTHORIZED ?? false }
+    : false
 });
 
-/**
- * Función general para consultas
- */
-export async function query(sql, params = []) {
-  const result = await pool.query(sql, params);
-  return result;
-}
+pool.on("connect", () => {
+  console.log("[DB] Conectado a PostgreSQL");
+});
 
-/**
- * Probar conexión
- */
-export async function test() {
-  await pool.query("SELECT 1");
-  return true;
-}
+pool.on("error", (err) => {
+  console.error("[DB] Error en pool:", err);
+});
 
-/**
- * Insertar acta (scraper)
- */
-export async function insertActa({ id, patente, fecha, foto, video }) {
-  await pool.query(
-    `INSERT INTO actas (id, patente, fecha, foto, video)
-     VALUES ($1, $2, $3, $4, $5)
-     ON CONFLICT (id) DO NOTHING`,
-    [id, patente, fecha, foto, video]
-  );
-}
-
-/**
- * Obtener última acta
- */
-export async function getLastActa() {
-  const result = await pool.query(
-    "SELECT * FROM actas ORDER BY id DESC LIMIT 1"
-  );
-  return result.rows[0] || null;
-}
