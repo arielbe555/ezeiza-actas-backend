@@ -16,19 +16,24 @@ export const pool = new Pool({
   user: ENV.DB_USER,
   password: ENV.DB_PASS,
   database: ENV.DB_NAME,
-  ssl: true
+  ssl: { rejectUnauthorized: false }
 });
 
 pool.connect()
   .then(() => console.log("[DB] 🟢 Conectado a PostgreSQL"))
-  .catch(err => console.error("[DB] 🔴 Error de conexión:", err));
+  .catch(err => console.error("[DB] 🔴 Error de conexión:", err.message));
 
 // =====================================================
-//  UTILIDAD
+//  UTILIDAD GENERAL
 // =====================================================
 export async function query(sql, params) {
-  const result = await pool.query(sql, params);
-  return result.rows;
+  try {
+    const r = await pool.query(sql, params);
+    return r.rows;
+  } catch (err) {
+    console.error("[DB] ❌ Error en consulta:", err.message);
+    throw err;
+  }
 }
 
 // =====================================================
@@ -67,8 +72,8 @@ export async function insertActa(data) {
     data.video_url || null
   ];
 
-  const result = await query(sql, params);
-  return result[0];
+  const r = await query(sql, params);
+  return r[0];
 }
 
 // =====================================================
@@ -81,14 +86,13 @@ export async function getActasByDocumento(documento) {
     WHERE dni = $1 OR cuit = $1 OR patente = $1
     ORDER BY fecha DESC;
   `;
-
   return await query(sql, [documento]);
 }
 
 export async function getActaById(id) {
   const sql = `SELECT * FROM actas WHERE id = $1 LIMIT 1;`;
-  const data = await query(sql, [id]);
-  return data[0];
+  const r = await query(sql, [id]);
+  return r[0];
 }
 
 export async function getActasPendientes() {
@@ -108,7 +112,7 @@ export async function getActasExternas() {
     WHERE tipo_origen = 'externa'
     ORDER BY fecha DESC;
   `;
-  return query(sql);
+  return await query(sql);
 }
 
 export async function getActasPropias() {
@@ -118,11 +122,102 @@ export async function getActasPropias() {
     WHERE tipo_origen = 'propia'
     ORDER BY fecha DESC;
   `;
-  return query(sql);
+  return await query(sql);
 }
 
 // =====================================================
-//  ACTAS – PAGOS
+//  ACTAS – CAMBIAR ESTADO
+// =====================================================
+export async function setActaEstado(id, estado) {
+  const sql = `
+    UPDATE actas
+    SET estado = $2
+    WHERE id = $1
+    RETURNING *;
+  `;
+  const r = await query(sql, [id, estado]);
+  return r[0];
+}
+
+// =====================================================
+//  PAGOS PENDIENTES (MERCADO PAGO)
+// =====================================================
+export async function createPagoPendiente({
+  acta_id,
+  monto,
+  medio,
+  estado = "pendiente",
+  referencia_externa = null
+}) {
+  const sql = `
+    INSERT INTO pagos_pendientes (
+      acta_id,
+      monto,
+      medio,
+      estado,
+      referencia_externa,
+      creado_en
+    ) VALUES ($1,$2,$3,$4,$5,NOW())
+    RETURNING *;
+  `;
+
+  const params = [
+    acta_id,
+    monto,
+    medio,
+    estado,
+    referencia_externa
+  ];
+
+  const r = await query(sql, params);
+  return r[0];
+}
+
+export async function getPagoPendienteById(id) {
+  const sql = `
+    SELECT *
+    FROM pagos_pendientes
+    WHERE id = $1 LIMIT 1;
+  `;
+  const r = await query(sql, [id]);
+  return r[0];
+}
+
+export async function getPagoPendienteByActa(actaId) {
+  const sql = `
+    SELECT *
+    FROM pagos_pendientes
+    WHERE acta_id = $1
+    ORDER BY creado_en DESC
+    LIMIT 1;
+  `;
+  const r = await query(sql, [actaId]);
+  return r[0];
+}
+
+export async function updatePagoPendiente(id, estado, referencia) {
+  const sql = `
+    UPDATE pagos_pendientes
+    SET estado = $2,
+        referencia_externa = $3
+    WHERE id = $1
+    RETURNING *;
+  `;
+  const r = await query(sql, [id, estado, referencia]);
+  return r[0];
+}
+
+export async function getPagosPendientes() {
+  const sql = `
+    SELECT *
+    FROM pagos_pendientes
+    ORDER BY creado_en DESC;
+  `;
+  return await query(sql);
+}
+
+// =====================================================
+//  PAGOS – REGISTRO FINAL
 // =====================================================
 export async function registrarPago(actaId, comprobante, mpJSON) {
   const sql = `
@@ -134,25 +229,43 @@ export async function registrarPago(actaId, comprobante, mpJSON) {
     ) VALUES ($1,$2,$3,NOW())
     RETURNING *;
   `;
-
-  const result = await query(sql, [actaId, comprobante, mpJSON]);
-  return result[0];
+  const r = await query(sql, [actaId, comprobante, mpJSON]);
+  return r[0];
 }
 
 export async function marcarActaComoPagada(actaId) {
+  return await setActaEstado(actaId, "pagada");
+}
+
+export async function registrarPagoMP({
+  actaId,
+  mp_id,
+  mp_status,
+  mp_raw
+}) {
   const sql = `
-    UPDATE actas
-    SET estado = 'pagada'
-    WHERE id = $1
+    INSERT INTO pagos (
+      acta_id,
+      comprobante,
+      datos_mp,
+      fecha_pago
+    ) VALUES ($1,$2,$3,NOW())
     RETURNING *;
   `;
 
-  const result = await query(sql, [actaId]);
-  return result[0];
+  const r = await query(sql, [
+    actaId,
+    mp_id,
+    mp_raw
+  ]);
+
+  await setActaEstado(actaId, "pagada");
+
+  return r[0];
 }
 
 // =====================================================
-//  SCRAPER – LOGS Y ESTADO
+//  SCRAPER LOGS
 // =====================================================
 export async function logScraperError(actaId, errorMsg) {
   const sql = `
@@ -174,32 +287,26 @@ export async function getLastActa() {
 }
 
 // =====================================================
-//  AUDITORÍA – CONSULTAS
+//  AUDITORÍA
 // =====================================================
 export async function logConsulta(documento, ip) {
   const sql = `
-    INSERT INTO consultas (
-      documento,
-      ip,
-      fecha
-    ) VALUES ($1,$2,NOW());
+    INSERT INTO consultas (documento, ip, fecha)
+    VALUES ($1,$2,NOW());
   `;
   await query(sql, [documento, ip]);
 }
 
 export async function logAccion(usuarioId, descripcion) {
   const sql = `
-    INSERT INTO auditoria (
-      usuario_id,
-      descripcion,
-      fecha
-    ) VALUES ($1,$2,NOW());
+    INSERT INTO auditoria (usuario_id, descripcion, fecha)
+    VALUES ($1,$2,NOW());
   `;
   await query(sql, [usuarioId, descripcion]);
 }
 
 // =====================================================
-//  RESUMEN GENERAL PARA DASHBOARD
+//  DASHBOARD
 // =====================================================
 export async function getDashboardResumen() {
   const sql = `
@@ -208,9 +315,10 @@ export async function getDashboardResumen() {
       (SELECT COUNT(*) FROM actas WHERE estado='pendiente') AS pendientes,
       (SELECT COUNT(*) FROM actas WHERE estado='pagada') AS pagadas,
       (SELECT COUNT(*) FROM actas WHERE tipo_origen='externa') AS externas,
-      (SELECT COUNT(*) FROM actas WHERE tipo_origen='propia') AS propias
+      (SELECT COUNT(*) FROM actas WHERE tipo_origen='propia') AS propias;
   `;
   const r = await query(sql);
   return r[0];
 }
+
 
