@@ -135,4 +135,16 @@ export async function upsertActaExterna(acta) {
     client.release();
   }
 }
+export async function logScraperError(actaId, errorMsg) {
+  await pool.query(
+    `INSERT INTO scraper_log (acta_id, error, fecha) VALUES ($1, $2, NOW())`,
+    [actaId, errorMsg]
+  );
+}
+export async function logScraperError(actaId, errorMsg) {
+  await pool.query(
+    `INSERT INTO scraper_log (acta_id, error, fecha) VALUES ($1, $2, NOW())`,
+    [actaId, errorMsg]
+  );
+}
 
