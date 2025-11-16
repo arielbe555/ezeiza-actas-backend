@@ -1,11 +1,12 @@
-import express from "express";
-import { listarActas, obtenerActa, crearActa, ultimaActa } from "../controllers/actasController.js";
+// src/routes/actasRoutes.js
+import { Router } from "express";
+import { buscarActas } from "../controllers/actasController.js";
 
-const router = express.Router();
+const router = Router();
 
-router.get("/", listarActas);
-router.get("/ultima", ultimaActa);
-router.get("/:id", obtenerActa);
-router.post("/", crearActa);
+/**
+ * GET /api/actas?dni=XXXXXXXX  o  /api/actas?cuit=XXXXXXXXXXXX
+ */
+router.get("/", buscarActas);
 
 export default router;

@@ -1,62 +1,48 @@
 // server.js
 import express from "express";
 import cors from "cors";
+import helmet from "helmet";
 import morgan from "morgan";
-import dotenv from "dotenv";
-dotenv.config();
 
-import "./src/config/env.js"; // solo valida env
-import infraccionesRouter from "./src/routes/infraccionesRoutes.js";
-import pagosRouter from "./src/routes/pagosRoutes.js";
+import { loadEnv } from "./src/config/env.js";
+import { connectDB } from "./src/config/db.js";
+import { logger } from "./src/utils/logger.js";
+
+import router from "./src/routes/index.js";
+import { notFoundHandler, errorHandler } from "./src/middlewares/errorHandler.js";
+
+loadEnv(); // Carga variables de entorno (.env, etc.)
 
 const app = express();
 
 // Middlewares base
+app.use(helmet());
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true }));
 app.use(morgan("dev"));
 
-// Healthcheck
-app.get("/", (req, res) => {
-  res.json({
-    status: "API funcionando correctamente",
-    version: "1.0.0"
-  });
-});
+// Rutas principales
+app.use("/", router);
 
-// Resumen admin simple (se puede ampliar después)
-app.get("/admin/resumen", (req, res) => {
-  res.json({
-    status: "OK",
-    message: "Resumen administrativo",
-    timestamp: new Date().toISOString(),
-    servicios: {
-      pagos: "/api/pagos",
-      actas: "/api/actas",
-      infracciones: "/api/infracciones",
-      uploads: "/api/uploads"
-    }
-  });
-});
+// Manejo 404 y errores
+app.use(notFoundHandler);
+app.use(errorHandler);
 
-// Rutas de negocio
-app.use("/api/infracciones", infraccionesRouter);
-app.use("/api/pagos", pagosRouter);
+// Inicio del servidor
+const PORT = process.env.PORT || 3000;
 
-// 404
-app.use((req, res) => {
-  res.status(404).json({ error: "Ruta no encontrada" });
-});
+async function start() {
+  try {
+    await connectDB();
+    app.listen(PORT, () => {
+      logger.info(`🚀 Servidor CESA escuchando en puerto ${PORT}`);
+    });
+  } catch (err) {
+    logger.error("❌ No se pudo iniciar el servidor", err);
+    process.exit(1);
+  }
+}
 
-// Error handler simple
-app.use((err, req, res, next) => {
-  console.error("ERROR GLOBAL:", err);
-  res.status(500).json({ error: "Error interno del servidor" });
-});
-
-const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => {
-  console.log(`Servidor en puerto ${PORT}`);
-});
-
+start();
 

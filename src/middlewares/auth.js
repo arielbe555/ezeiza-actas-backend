@@ -1,28 +1,27 @@
+// src/middlewares/auth.js
 import jwt from "jsonwebtoken";
 
-export const auth = (roles = []) => {
-  const allowed = Array.isArray(roles) ? roles : [roles];
+export function requireAuth(req, res, next) {
+  const authHeader = req.headers.authorization;
 
-  return (req, res, next) => {
-    try {
-      const header = req.headers.authorization || "";
-      const token = header.startsWith("Bearer ") ? header.slice(7) : null;
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return res.status(401).json({
+      status: "error",
+      message: "No autorizado. Token no enviado."
+    });
+  }
 
-      if (!token) {
-        return res.status(401).json({ error: "Token requerido" });
-      }
+  const token = authHeader.split(" ")[1];
 
-      const payload = jwt.verify(token, process.env.JWT_SECRET);
-      req.user = payload;
+  try {
+    const payload = jwt.verify(token, process.env.JWT_SECRET || "dev-secret");
+    req.user = payload;
+    next();
+  } catch (err) {
+    return res.status(401).json({
+      status: "error",
+      message: "Token inválido o expirado."
+    });
+  }
+}
 
-      if (allowed.length && !allowed.includes(payload.rol)) {
-        return res.status(403).json({ error: "Rol no autorizado" });
-      }
-
-      next();
-    } catch (err) {
-      console.error("Auth error", err);
-      return res.status(401).json({ error: "Token inválido" });
-    }
-  };
-};

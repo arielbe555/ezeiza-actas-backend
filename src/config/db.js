@@ -1,27 +1,45 @@
 // src/config/db.js
-import pg from "pg";
-import { ENV } from "./env.js";
+import pkg from "pg";
+import { logger } from "../utils/logger.js";
 
-const { Pool } = pg;
+const { Pool } = pkg;
 
-if (!ENV.DATABASE_URL) {
-  console.error(
-    "[DB] No se encontró DATABASE_URL. Configurala en Render o en .env"
-  );
+let pool;
+
+export function getPool() {
+  if (!pool) {
+    throw new Error("Pool de PostgreSQL no inicializado. Llamá a connectDB() primero.");
+  }
+  return pool;
 }
 
-export const pool = new Pool({
-  connectionString: ENV.DATABASE_URL,
-  ssl: ENV.DATABASE_URL
-    ? { rejectUnauthorized: ENV.DB_SSL_REJECT_UNAUTHORIZED ?? false }
-    : false
-});
+export async function connectDB() {
+  if (pool) return pool;
 
-pool.on("connect", () => {
-  console.log("[DB] Conectado a PostgreSQL");
-});
+  const connectionString = process.env.DATABASE_URL;
 
-pool.on("error", (err) => {
-  console.error("[DB] Error en pool:", err);
-});
+  if (!connectionString) {
+    throw new Error("DATABASE_URL no está definida en las variables de entorno.");
+  }
+
+  pool = new Pool({
+    connectionString,
+    ssl: {
+      rejectUnauthorized: false
+    }
+  });
+
+  // Probar conexión
+  try {
+    const client = await pool.connect();
+    const res = await client.query("SELECT NOW()");
+    logger.info(`🟢 Conectado a PostgreSQL. NOW() = ${res.rows[0].now}`);
+    client.release();
+  } catch (err) {
+    logger.error("❌ Error conectando a PostgreSQL:", err);
+    throw err;
+  }
+
+  return pool;
+}
 

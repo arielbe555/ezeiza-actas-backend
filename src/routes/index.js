@@ -1,24 +1,25 @@
+// src/routes/index.js
 import { Router } from "express";
-import { login } from "../controllers/authController.js";
-import { getActasByPatente, getActaById } from "../controllers/actasController.js";
-import { crearPago } from "../controllers/pagosController.js";
-import { auth } from "../middlewares/auth.js";
+import adminRoutes from "./adminRoutes.js";
+import actasRoutes from "./actasRoutes.js";
 
 const router = Router();
 
-// health
-router.get("/health", (req, res) => {
-  res.json({ status: "ok", service: "ezeiza-actas-backend" });
+// Healthcheck
+router.get("/", (req, res) => {
+  res.json({
+    status: "API funcionando correctamente",
+    version: "1.0.0",
+    timestamp: new Date().toISOString()
+  });
 });
 
-// auth
-router.post("/auth/login", login);
+// Rutas admin
+router.use("/admin", adminRoutes);
 
-// actas
-router.get("/actas/patente/:patente", auth(), getActasByPatente);
-router.get("/actas/:id", auth(), getActaById);
+// Rutas actas (consultas públicas)
+router.use("/api/actas", actasRoutes);
 
-// pagos
-router.post("/pagos", auth(), crearPago);
-
+// (En próximas entregas enchufamos /api/infracciones, /api/pagos, /api/uploads, /api/scraper, etc.)
 export default router;
+
