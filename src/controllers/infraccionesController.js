@@ -13,12 +13,14 @@ import {
   mapInfraccionesExternas
 } from "../utils/infratrackClient.js";
 
-import { generarActaPDF } from "../services/pdfService.js";   // ⬅ AGREGADO
-import axios from "axios";                                    // ⬅ AGREGADO
+import { generarActaPDF } from "../services/pdfService.js";
+import { guardarMedia } from "../services/mediaService.js";
+import { registrarAuditoria } from "../services/auditoriaService.js";
 
+import axios from "axios";
 
 /* ============================================================
-    🔎  CONTROLADOR ORIGINAL — CONSULTAR INFRACCIONES
+    🔎 CONSULTA DE INFRACCIONES (TU CÓDIGO ORIGINAL)
    ============================================================ */
 
 function detectarConsulta(query) {
@@ -50,7 +52,6 @@ export async function obtenerInfracciones(req, res) {
   const { tipo, valor } = criterio;
 
   try {
-    // 1) Base local
     let actasLocales = [];
     if (tipo === "DOCUMENTO") {
       actasLocales = await getActasByDocumento(valor);
@@ -58,7 +59,6 @@ export async function obtenerInfracciones(req, res) {
       actasLocales = await getActasByPatente(valor);
     }
 
-    // 2) Consulta externa a Infratrack
     let metaExterna = null;
     let actasExternas = [];
 
@@ -73,7 +73,6 @@ export async function obtenerInfracciones(req, res) {
       metaExterna = meta;
       actasExternas = mapInfraccionesExternas(infracciones);
 
-      // Consolidación (no bloquea respuesta)
       for (const acta of actasExternas) {
         upsertActaExterna({
           numero_acta: acta.numero_acta,
@@ -90,25 +89,19 @@ export async function obtenerInfracciones(req, res) {
       console.error("[INFRACCIONES] Error consultando Infratrack:", errExt);
     }
 
-    const respuesta = {
+    return res.json({
       ok: true,
-      criterio: {
-        tipo_busqueda: tipo,
-        valor
-      },
+      criterio: { tipo_busqueda: tipo, valor },
       resumen: {
         total_locales: actasLocales.length,
         total_externas: actasExternas.length,
         total_general: actasLocales.length + actasExternas.length
       },
-      origenes: {
-        externa: metaExterna
-      },
+      origenes: { externa: metaExterna },
       actas_locales: actasLocales,
       actas_externas: actasExternas
-    };
+    });
 
-    return res.json(respuesta);
   } catch (err) {
     console.error("[INFRACCIONES] Error general:", err);
     return res.status(500).json({
@@ -120,7 +113,7 @@ export async function obtenerInfracciones(req, res) {
 
 
 /* ============================================================
-    📄  NUEVO CONTROLADOR — GENERAR ACTA + PDF (ENTREGA 4)
+    📄 CREAR ACTA + MEDIA + PDF + AUDITORIA (FINAL)
    ============================================================ */
 
 export const crearInfraccion = async (req, res) => {
@@ -132,33 +125,36 @@ export const crearInfraccion = async (req, res) => {
       lat,
       lng,
       foto,
-      camaraId
+      camaraId,
+      video
     } = req.body;
 
     if (!patente) return res.status(400).json({ error: "Patente requerida." });
-    if (!velocidad || !velocidadPermitida) {
+    if (!velocidad || !velocidadPermitida)
       return res.status(400).json({ error: "Velocidades inválidas." });
-    }
-    if (!lat || !lng) return res.status(400).json({ error: "Coordenadas inválidas." });
-    if (!foto) return res.status(400).json({ error: "Foto requerida (base64)." });
-    if (!camaraId) return res.status(400).json({ error: "camaraId requerido." });
+    if (!lat || !lng)
+      return res.status(400).json({ error: "Coordenadas inválidas." });
+    if (!foto)
+      return res.status(400).json({ error: "Foto base64 requerida." });
+    if (!camaraId)
+      return res.status(400).json({ error: "camaraId requerido." });
 
-    // Obtener dirección real
+    // 1. Reverse geocoding
     let direccion = "Dirección no disponible";
     try {
       const geo = await axios.get(
         `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`,
-        { headers: { "User-Agent": "CESA Infracciones" } }
+        { headers: { "User-Agent": "CESA-Infracciones" } }
       );
       direccion = geo.data.display_name || direccion;
     } catch (e) {
       console.log("⚠ Reverse geocoding error:", e.message);
     }
 
-    // ID único del acta
+    // 2. ID único del acta
     const idActa = `CESA-${Date.now()}`;
 
-    // Guardar en BD propia
+    // 3. Guardar acta local
     await insertarActaLocal({
       idActa,
       patente,
@@ -170,7 +166,34 @@ export const crearInfraccion = async (req, res) => {
       camaraId
     });
 
-    // Generar PDF completo
+    // 4. Guardar foto
+    const rutaFoto = await guardarMedia({
+      idActa,
+      camaraId,
+      tipo: "foto",
+      base64: foto
+    });
+
+    // 5. Guardar video si llegó
+    let rutaVideo = null;
+    if (video) {
+      rutaVideo = await guardarMedia({
+        idActa,
+        camaraId,
+        tipo: "video",
+        base64: video
+      });
+    }
+
+    // 6. Auditoría de creación
+    await registrarAuditoria({
+      actaId: idActa,
+      accion: "ACTA_CREADA",
+      ip: req.ip,
+      detalles: `Foto:${rutaFoto} | Video:${rutaVideo}`
+    });
+
+    // 7. PDF final
     const pdfPath = await generarActaPDF({
       idActa,
       patente,
@@ -183,19 +206,30 @@ export const crearInfraccion = async (req, res) => {
       camaraId
     });
 
+    // 8. Auditoría PDF
+    await registrarAuditoria({
+      actaId: idActa,
+      accion: "PDF_GENERADO",
+      ip: req.ip,
+      detalles: pdfPath
+    });
+
+    // 9. Respuesta final
     return res.json({
       ok: true,
-      mensaje: "Acta generada exitosamente.",
+      mensaje: "Acta generada con media + PDF.",
       idActa,
-      pdf: pdfPath,
-      direccion
+      direccion,
+      foto: rutaFoto,
+      video: rutaVideo,
+      pdf: pdfPath
     });
 
   } catch (error) {
     console.error("[CREAR INFRACCION] ERROR:", error);
     return res.status(500).json({
       ok: false,
-      error: "Error al generar el acta",
+      error: "Error interno",
       detalle: error.message
     });
   }
