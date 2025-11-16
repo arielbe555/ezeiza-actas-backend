@@ -1,5 +1,5 @@
 // src/services/usuariosService.js
-import { getPool } from "../config/db.js";
+import { pool as getPool } from "../database/db.js";
 import { logger } from "../utils/logger.js";
 
 export async function buscarUsuarioPorDocumento({ dni, cuit }) {

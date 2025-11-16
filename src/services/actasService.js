@@ -1,5 +1,5 @@
 // src/services/actasService.js
-import { getPool } from "../config/db.js";
+import { pool as getPool } from "../database/db.js";
 import { logger } from "../utils/logger.js";
 
 /**
