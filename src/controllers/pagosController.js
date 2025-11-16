@@ -8,7 +8,9 @@ import {
   logMPNotification
 } from "../database/db.js";
 
+// ==========================================
 // Crear preferencia de pago
+// ==========================================
 export async function crearPreferenciaPago(req, res) {
   try {
     const { actaId, monto, dni } = req.body;
@@ -44,7 +46,9 @@ export async function crearPreferenciaPago(req, res) {
   }
 }
 
-// Webhook
+// ==========================================
+// Webhook MercadoPago
+// ==========================================
 export async function webhookMP(req, res) {
   try {
     const data = req.body;
@@ -74,7 +78,9 @@ export async function webhookMP(req, res) {
   }
 }
 
-// Consultar pago por acta
+// ==========================================
+// Estado por acta
+// ==========================================
 export async function estadoPagoPorActa(req, res) {
   const { actaId } = req.params;
 
@@ -87,19 +93,11 @@ export async function estadoPagoPorActa(req, res) {
   return res.json({ ok: true, pago });
 }
 
+// ==========================================
 // Historial por DNI
+// ==========================================
 export async function historialPagosPorDni(req, res) {
   const { dni } = req.query;
   const pagos = await getPagosByDni(dni);
   return res.json({ ok: true, pagos });
 }
-
-// =======================================================
-// 🔥 EXPORTACIÓN REAL (Esto es lo que te faltaba)
-// =======================================================
-export {
-  crearPreferenciaPago,
-  webhookMP,
-  estadoPagoPorActa,
-  historialPagosPorDni
-};
