@@ -1,23 +1,46 @@
-// TEST FIX - 16/11/2025
+// ============================================
+//  DATABASE - Conexión PostgreSQL Render
+// ============================================
+
 import pg from "pg";
 const { Pool } = pg;
 
-// =============================
-//  POOL
-// =============================
-export const pool = new Pool({
-  connectionString: process.env.DB_URL,
-  ssl: { rejectUnauthorized: false }
-});
+// ============================================
+//  VALIDACIÓN DE ENV
+// ============================================
+const connectionString = process.env.DATABASE_URL;
 
-export async function query(text, params) {
-  const res = await pool.query(text, params);
-  return res.rows;
+if (!connectionString) {
+  console.error("❌ ERROR FATAL: DATABASE_URL no está definida en el entorno.");
+  console.error("👉 Configurá tu variable en Render → Environment → DATABASE_URL");
+  process.exit(1);
 }
 
+console.log("🔵 [DB] Conectando a PostgreSQL Render...");
+
+// ============================================
+//  POOL GLOBAL
+// ============================================
+export const pool = new Pool({
+  connectionString,
+  ssl: { rejectUnauthorized: false } // Render exige SSL
+});
+
+// ============================================
+//  FUNCIÓN BASE query()
+// ============================================
+export async function query(text, params) {
+  try {
+    const res = await pool.query(text, params);
+    return res.rows;
+  } catch (err) {
+    console.error("❌ ERROR en query():", err);
+    throw err;
+  }
+}
 
 // =============================
-//  🔵 ACTAS LOCALES (CONSULTA)
+//  🔵 BUSCAR ACTAS
 // =============================
 export async function getActasByDocumento(documento) {
   const sql = `
@@ -39,10 +62,8 @@ export async function getActasByPatente(patente) {
   return await query(sql, [patente]);
 }
 
-
 // =============================
-//  🟢 ACTAS LOCALES (INSERT NUEVO)
-//    → Necesario para generar PDF
+//  🟢 INSERTAR ACTA LOCAL
 // =============================
 export async function insertarActaLocal({
   idActa,
@@ -83,7 +104,6 @@ export async function insertarActaLocal({
   ]);
 }
 
-
 // =============================
 //  🔵 ACTAS EXTERNAS
 // =============================
@@ -101,7 +121,8 @@ export async function upsertActaExterna({
     INSERT INTO actas (
       numero_acta, documento, patente, fecha,
       monto, estado, descripcion, origen
-    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+    )
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
     ON CONFLICT (numero_acta)
     DO UPDATE SET
       documento = EXCLUDED.documento,
@@ -115,16 +136,27 @@ export async function upsertActaExterna({
   `;
 
   return await query(sql, [
-    numero_acta, documento, patente, fecha,
-    monto, estado, descripcion, origen
+    numero_acta,
+    documento,
+    patente,
+    fecha,
+    monto,
+    estado,
+    descripcion,
+    origen
   ]);
 }
 
-
 // =============================
-//  🟢 PAGOS
+//  🟣 PAGOS
 // =============================
-export async function createPagoPendiente({ actaId, dni, monto, mpPreferenceId, mpRaw }) {
+export async function createPagoPendiente({
+  actaId,
+  dni,
+  monto,
+  mpPreferenceId,
+  mpRaw
+}) {
   const sql = `
     INSERT INTO pagos (
       acta_id, dni, monto,
@@ -134,7 +166,13 @@ export async function createPagoPendiente({ actaId, dni, monto, mpPreferenceId, 
     VALUES ($1,$2,$3,$4,$5,'pendiente',NOW())
     RETURNING *;
   `;
-  return await query(sql, [actaId, dni, monto, mpPreferenceId, mpRaw]);
+  return await query(sql, [
+    actaId,
+    dni,
+    monto,
+    mpPreferenceId,
+    mpRaw
+  ]);
 }
 
 export async function getPagoPendienteByActa(actaId) {
@@ -159,7 +197,12 @@ export async function getPagosByDni(dni) {
   return await query(sql, [dni]);
 }
 
-export async function updatePagoFromWebhook({ mpPreferenceId, mpStatus, mpPaymentId, mpRaw }) {
+export async function updatePagoFromWebhook({
+  mpPreferenceId,
+  mpStatus,
+  mpPaymentId,
+  mpRaw
+}) {
   const sql = `
     UPDATE pagos
     SET estado = $2,
@@ -169,7 +212,13 @@ export async function updatePagoFromWebhook({ mpPreferenceId, mpStatus, mpPaymen
     WHERE mp_preference_id = $1
     RETURNING *;
   `;
-  return await query(sql, [mpPreferenceId, mpStatus, mpPaymentId, mpRaw]);
+
+  return await query(sql, [
+    mpPreferenceId,
+    mpStatus,
+    mpPaymentId,
+    mpRaw
+  ]);
 }
 
 export async function logMPNotification(payload) {
@@ -180,11 +229,16 @@ export async function logMPNotification(payload) {
   return await query(sql, [payload]);
 }
 
-
 // =============================
-//  🟣 SCRAPER
+//  🟡 SCRAPER
 // =============================
-export async function insertActa({ id, patente, fecha, foto, video }) {
+export async function insertActa({
+  id,
+  patente,
+  fecha,
+  foto,
+  video
+}) {
   const sql = `
     INSERT INTO scraper_actas (acta_id, patente, fecha, foto, video)
     VALUES ($1,$2,$3,$4,$5)
