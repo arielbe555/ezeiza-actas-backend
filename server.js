@@ -1,3 +1,12 @@
+import fs from "fs";
+import path from "path";
+
+const pdfDir = path.join(process.cwd(), "pdfs");
+
+if (!fs.existsSync(pdfDir)) {
+  fs.mkdirSync(pdfDir);
+  console.log("📁 Carpeta /pdfs creada automáticamente");
+}
 import express from "express";
 import cors from "cors";
 import infraccionesRoutes from "./src/routes/infraccionesRoutes.js";
