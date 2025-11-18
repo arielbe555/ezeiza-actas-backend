@@ -16,6 +16,7 @@ import pagosRouter from "./routes/pagosRoutes.js";
 import uploadsRouter from "./routes/uploadsRoutes.js";
 import infraccionesRouter from "./routes/infraccionesRoutes.js";
 import scrapRouter from "./routes/scrap.js";
+import tecnicoRoutes from "./routes/tecnicoRoutes.js";
 
 const app = express();
 
@@ -28,6 +29,7 @@ app.use(cors({
 
 app.use(express.json());
 app.use(morgan("dev"));
+app.use("/api/tecnico", tecnicoRoutes);
 
 // ============================================
 //  HEALTHCHECK
