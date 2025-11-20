@@ -3,7 +3,7 @@ import pool from "../config/db.js";
 /* ============================================================
    1) LISTAR ACTAS PENDIENTES PARA AUDITOR
    ============================================================ */
-export const listarActasPendientesAuditor = async (req, res) => {
+export const listarPendientesAuditor = async (req, res) => {
   try {
     const { rows } = await pool.query(`
       SELECT *
@@ -15,28 +15,26 @@ export const listarActasPendientesAuditor = async (req, res) => {
 
     return res.json(rows);
   } catch (error) {
-    console.error("Error listarActasPendientesAuditor:", error);
+    console.error("Error listarPendientesAuditor:", error);
     return res.status(500).json({ error: "Error obteniendo actas" });
   }
 };
 
-
 /* ============================================================
-   2) APROBAR ACTA → Reglas del auditor
+   2) APROBAR ACTA → REGLAS (auditor)
    ============================================================ */
-export const aprobarActaAuditor = async (req, res) => {
+export const aprobarAuditor = async (req, res) => {
   const { id } = req.params;
   const { auditorId, porcentaje, motivo } = req.body;
 
-  const REGLAS_AUTOMATICAS = [50, 25, 60];  
-  const requiereDirector = !REGLAS_AUTOMATICAS.includes(Number(porcentaje));
+  const REGLAS = [50, 25, 60];
+  const requiereDirector = !REGLAS.includes(Number(porcentaje));
 
   const client = await pool.connect();
 
   try {
     await client.query("BEGIN");
 
-    // Traigo el acta
     const { rows } = await client.query(
       "SELECT * FROM actas WHERE id=$1",
       [id]
@@ -56,11 +54,7 @@ export const aprobarActaAuditor = async (req, res) => {
       const solicitud = await client.query(
         `
         INSERT INTO director_aprobaciones (
-          acta_id,
-          auditor_id,
-          motivo,
-          estado,
-          fecha_solicitud
+          acta_id, auditor_id, motivo, estado, fecha_solicitud
         )
         VALUES ($1,$2,$3,'pendiente',NOW())
         RETURNING *
@@ -82,9 +76,8 @@ export const aprobarActaAuditor = async (req, res) => {
       });
     }
 
-
     /* -------------------------------
-       B) APROBACIÓN DIRECTA DEL AUDITOR
+       B) APROBACIÓN DIRECTA
        ------------------------------- */
 
     const montoOriginal = Number(acta.monto);
@@ -105,39 +98,30 @@ export const aprobarActaAuditor = async (req, res) => {
     await client.query(
       `
       INSERT INTO auditoria (
-        acta_id,
-        auditor_id,
-        accion,
-        detalle,
-        fecha
+        acta_id, auditor_id, accion, detalle, fecha
       )
-      VALUES ($1,$2,'aprobar','Descuento aplicado: ${porcentaje}%',NOW())
+      VALUES ($1,$2,'aprobar','Descuento: ${porcentaje}%',NOW())
       `,
       [id, auditorId]
     );
 
     await client.query("COMMIT");
 
-    return res.json({
-      ok: true,
-      aprobado: true,
-      monto_final: montoFinal
-    });
+    return res.json({ ok: true, monto_final: montoFinal });
 
   } catch (error) {
     await client.query("ROLLBACK");
-    console.error("Error aprobarActaAuditor:", error);
+    console.error("Error aprobarAuditor:", error);
     return res.status(500).json({ error: "Error aprobando acta" });
   } finally {
     client.release();
   }
 };
 
-
 /* ============================================================
    3) RECHAZAR ACTA
    ============================================================ */
-export const rechazarActaAuditor = async (req, res) => {
+export const rechazarAuditor = async (req, res) => {
   const { id } = req.params;
   const { auditorId, motivo } = req.body;
 
@@ -158,24 +142,28 @@ export const rechazarActaAuditor = async (req, res) => {
     );
 
     return res.json({ ok: true });
+
   } catch (error) {
-    console.error("Error rechazarActaAuditor:", error);
+    console.error("Error rechazarAuditor:", error);
     return res.status(500).json({ error: "Error rechazando acta" });
   }
 };
 
-
 /* ============================================================
-   4) DECISIÓN FINAL DEL DIRECTOR
+   4) RESOLUCIÓN FINAL DEL DIRECTOR
    ============================================================ */
-export const resolverAprobacionDirector = async (req, res) => {
+export const resolverDirector = async (req, res) => {
   const { id } = req.params;
   const { directorId, aprobado, motivo } = req.body;
 
-  try {
-    const newState = aprobado ? "aprobada_director" : "rechazada_director";
+  const nuevoEstado = aprobado ? "aprobada_director" : "rechazada_director";
 
-    await pool.query(
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    await client.query(
       `
       UPDATE director_aprobaciones
       SET estado=$2,
@@ -184,12 +172,27 @@ export const resolverAprobacionDirector = async (req, res) => {
           fecha_resolucion=NOW()
       WHERE id=$1
       `,
-      [id, newState, directorId, motivo || ""]
+      [id, nuevoEstado, directorId, motivo || ""]
     );
 
+    await client.query(
+      `
+      UPDATE actas 
+      SET estado=$2, director_id=$3
+      WHERE id=(SELECT acta_id FROM director_aprobaciones WHERE id=$1)
+      `,
+      [id, nuevoEstado, directorId]
+    );
+
+    await client.query("COMMIT");
+
     return res.json({ ok: true });
+
   } catch (error) {
-    console.error("Error resolverAprobacionDirector:", error);
-    return res.status(500).json({ error: "Error del director" });
+    await client.query("ROLLBACK");
+    console.error("Error resolverDirector:", error);
+    return res.status(500).json({ error: "Error en resolución del director" });
+  } finally {
+    client.release();
   }
 };
