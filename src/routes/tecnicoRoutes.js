@@ -1,5 +1,6 @@
 // src/routes/tecnicoRoutes.js
 import express from "express";
+
 import {
   listarEventosPendientesTecnico,
   validarEventoTecnico,
@@ -13,15 +14,21 @@ import {
 
 const router = express.Router();
 
-// Lista eventos para técnico (pendientes, o por estado)
+/**
+ * GET /api/tecnico/eventos?estado=nuevo
+ * Lista eventos pendientes para validación técnica
+ */
 router.get(
   "/eventos",
   verificarToken,
-  requireRole("tecnico", "admin"), // admin también puede mirar todo
+  requireRole("tecnico", "admin"),
   listarEventosPendientesTecnico
 );
 
-// Valida un evento y genera el acta
+/**
+ * POST /api/tecnico/eventos/:id/validar
+ * El técnico valida el evento → genera el acta
+ */
 router.post(
   "/eventos/:id/validar",
   verificarToken,
@@ -29,7 +36,10 @@ router.post(
   validarEventoTecnico
 );
 
-// Rechaza un evento (ruido, ambulancia, etc.)
+/**
+ * POST /api/tecnico/eventos/:id/rechazar
+ * El técnico rechaza el evento (ambulancia, vehículo oficial, ruido, error OCR)
+ */
 router.post(
   "/eventos/:id/rechazar",
   verificarToken,
