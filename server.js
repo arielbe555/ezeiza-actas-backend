@@ -20,6 +20,7 @@ import scrapRoutes from "./src/routes/scrap.js";
 import tecnicoRoutes from "./src/routes/tecnicoRoutes.js";
 import auditorRoutes from "./src/routes/auditorRoutes.js";
 import dashboardRoutes from "./src/routes/dashboardRoutes.js";
+import pdfRoutes from "./src/routes/pdfRoutes.js";
 
 const app = express();
 
@@ -29,12 +30,15 @@ app.use(express.json());
 // Public
 app.use("/api/scraper", scrapRoutes);
 app.use("/api/pagos", pagosRoutes);
+app.use("/api/pdf", pdfRoutes);
 
 // Protegidas
 app.use("/api/infracciones", verificarToken, infraccionesRoutes);
 app.use("/api/tecnico", verificarToken, tecnicoRoutes);
 app.use("/api/auditor", verificarToken, auditorRoutes);
 app.use("/api/dashboard", verificarToken, dashboardRoutes);
+
+
 
 // Root
 app.get("/", (req, res) => {

@@ -1,3 +1,4 @@
+// src/controllers/auditorController.js
 import pool from "../config/db.js";
 
 /* ============================================================
@@ -21,7 +22,7 @@ export const listarPendientesAuditor = async (req, res) => {
 };
 
 /* ============================================================
-   2) APROBAR ACTA → REGLAS (auditor)
+   2) APROBAR ACTA (auditor) → reglas + director si aplica
    ============================================================ */
 export const aprobarAuditor = async (req, res) => {
   const { id } = req.params;
@@ -47,9 +48,9 @@ export const aprobarAuditor = async (req, res) => {
 
     const acta = rows[0];
 
-    /* -------------------------------
+    /* -----------------------------------------
        A) SI REQUIERE DIRECTOR
-       ------------------------------- */
+       ----------------------------------------- */
     if (requiereDirector) {
       const solicitud = await client.query(
         `
@@ -76,10 +77,9 @@ export const aprobarAuditor = async (req, res) => {
       });
     }
 
-    /* -------------------------------
-       B) APROBACIÓN DIRECTA
-       ------------------------------- */
-
+    /* -----------------------------------------
+       B) APROBACIÓN DIRECTA (Reglas automáticas)
+       ----------------------------------------- */
     const montoOriginal = Number(acta.monto);
     const montoFinal = montoOriginal - (montoOriginal * porcentaje / 100);
 
@@ -119,7 +119,7 @@ export const aprobarAuditor = async (req, res) => {
 };
 
 /* ============================================================
-   3) RECHAZAR ACTA
+   3) RECHAZAR ACTA (auditor)
    ============================================================ */
 export const rechazarAuditor = async (req, res) => {
   const { id } = req.params;
@@ -150,7 +150,7 @@ export const rechazarAuditor = async (req, res) => {
 };
 
 /* ============================================================
-   4) RESOLUCIÓN FINAL DEL DIRECTOR
+   4) RESOLUCIÓN DEL DIRECTOR (aprobación final)
    ============================================================ */
 export const resolverDirector = async (req, res) => {
   const { id } = req.params;
@@ -163,6 +163,7 @@ export const resolverDirector = async (req, res) => {
   try {
     await client.query("BEGIN");
 
+    // Actualiza la solicitud
     await client.query(
       `
       UPDATE director_aprobaciones
@@ -175,6 +176,7 @@ export const resolverDirector = async (req, res) => {
       [id, nuevoEstado, directorId, motivo || ""]
     );
 
+    // Actualiza el acta original
     await client.query(
       `
       UPDATE actas 

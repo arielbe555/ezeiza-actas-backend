@@ -3,14 +3,16 @@ import {
   listarPendientesAuditor,
   aprobarAuditor,
   rechazarAuditor,
-  resolverDirector,
-  solicitarDirector
+  resolverDirector
 } from "../controllers/auditorController.js";
 
 import { verificarToken, requireRole } from "../middlewares/authMiddleware.js";
 
 const router = express.Router();
 
+/* ========================================================
+   LISTAR ACTAS PENDIENTES PARA AUDITOR
+   ======================================================== */
 router.get(
   "/pendientes",
   verificarToken,
@@ -18,6 +20,9 @@ router.get(
   listarPendientesAuditor
 );
 
+/* ========================================================
+   APROBAR ACTA (con reglas o solicitud a director)
+   ======================================================== */
 router.post(
   "/:id/aprobar",
   verificarToken,
@@ -25,6 +30,9 @@ router.post(
   aprobarAuditor
 );
 
+/* ========================================================
+   RECHAZAR ACTA
+   ======================================================== */
 router.post(
   "/:id/rechazar",
   verificarToken,
@@ -32,13 +40,9 @@ router.post(
   rechazarAuditor
 );
 
-router.post(
-  "/:id/solicitar-director",
-  verificarToken,
-  requireRole("auditor", "admin"),
-  solicitarDirector
-);
-
+/* ========================================================
+   RESOLUCION DEL DIRECTOR
+   ======================================================== */
 router.post(
   "/director/:id/resolver",
   verificarToken,
