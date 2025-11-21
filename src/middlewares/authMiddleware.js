@@ -23,11 +23,15 @@ export const verificarToken = (req, res, next) => {
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
 
-    // Normalizamos el objeto usuario
+    // Normalizamos los campos del usuario
     req.user = {
       id: decoded.id,
       email: decoded.email,
-      rol: decoded.rol || decoded.rol_nuevo || decoded.role || "desconocido",
+      rol:
+        decoded.rol ||
+        decoded.rol_nuevo ||
+        decoded.role ||
+        "desconocido",
     };
 
     return next();
@@ -56,6 +60,4 @@ export const requireRole = (...rolesPermitidos) => {
 
     return next();
   };
-};
-
 };
