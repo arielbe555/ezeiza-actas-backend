@@ -1,5 +1,6 @@
 // src/controllers/tecnicoController.js
-import pool from "../config/db.js";
+import pool from "../database/db.js";
+
 
 // ============================================================
 // 1) LISTAR EVENTOS (técnico)

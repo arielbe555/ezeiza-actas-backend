@@ -1,5 +1,6 @@
 // src/controllers/auditorController.js
-import pool from "../config/db.js";
+import pool from "../database/db.js";
+
 
 /* ============================================================
    1) LISTAR ACTAS PENDIENTES PARA AUDITOR
