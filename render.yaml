@@ -1,9 +1,9 @@
-name: ezeiza-actas-backend
-type: web
-runtime: node
-buildCommand: "npm install"
-startCommand: "node server.js"
-rootDir: .
-envVars:
-  - key: NODE_ENV
-    value: production
+services:
+  - type: web
+    name: ezeiza-actas-backend
+    env: node
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
