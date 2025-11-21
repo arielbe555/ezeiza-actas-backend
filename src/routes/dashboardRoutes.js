@@ -1,14 +1,14 @@
 import express from "express";
+import { obtenerDashboardStats } from "../controllers/dashboardController.js";
 import { verificarToken, requireRole } from "../middlewares/authMiddleware.js";
-import { dashboardStats } from "../controllers/dashboardController.js";
 
 const router = express.Router();
 
 router.get(
   "/stats",
   verificarToken,
-  requireRole("auditor", "admin"),
-  dashboardStats
+  requireRole("auditor", "director", "tecnico", "admin"),
+  obtenerDashboardStats
 );
 
 export default router;
