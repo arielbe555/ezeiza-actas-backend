@@ -48,9 +48,9 @@ export const aprobarAuditor = async (req, res) => {
 
     const acta = rows[0];
 
-    /* -----------------------------------------
-       A) SI REQUIERE DIRECTOR
-       ----------------------------------------- */
+    // -----------------------------------------
+    // A) SI REQUIERE DIRECTOR
+    // -----------------------------------------
     if (requiereDirector) {
       const solicitud = await client.query(
         `
@@ -77,9 +77,9 @@ export const aprobarAuditor = async (req, res) => {
       });
     }
 
-    /* -----------------------------------------
-       B) APROBACIÓN DIRECTA (Reglas automáticas)
-       ----------------------------------------- */
+    // -----------------------------------------
+    // B) APROBACIÓN DIRECTA (Reglas automáticas)
+    // -----------------------------------------
     const montoOriginal = Number(acta.monto);
     const montoFinal = montoOriginal - (montoOriginal * porcentaje / 100);
 
@@ -163,7 +163,7 @@ export const resolverDirector = async (req, res) => {
   try {
     await client.query("BEGIN");
 
-    // Actualiza la solicitud
+    // Actualiza solicitud
     await client.query(
       `
       UPDATE director_aprobaciones
@@ -176,7 +176,7 @@ export const resolverDirector = async (req, res) => {
       [id, nuevoEstado, directorId, motivo || ""]
     );
 
-    // Actualiza el acta original
+    // Actualiza acta original
     await client.query(
       `
       UPDATE actas 

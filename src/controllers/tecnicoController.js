@@ -1,6 +1,9 @@
+// src/controllers/tecnicoController.js
 import pool from "../config/db.js";
 
-// GET /api/tecnico/eventos?estado=nuevo
+// ============================================================
+// 1) LISTAR EVENTOS (técnico)
+// ============================================================
 export const listarEventosPendientesTecnico = async (req, res) => {
   try {
     const { estado = "nuevo" } = req.query;
@@ -32,7 +35,9 @@ export const listarEventosPendientesTecnico = async (req, res) => {
   }
 };
 
-// POST /api/tecnico/eventos/:id/validar
+// ============================================================
+// 2) VALIDAR EVENTO (técnico) → crea ACTA
+// ============================================================
 export const validarEventoTecnico = async (req, res) => {
   const { id } = req.params;
   const { patente, motivo, tecnicoId } = req.body || {};
@@ -41,7 +46,6 @@ export const validarEventoTecnico = async (req, res) => {
   try {
     await client.query("BEGIN");
 
-    // 1) Actualizo evento de cámara
     const { rows: eventos } = await client.query(
       `
       UPDATE eventos_camara
@@ -63,30 +67,15 @@ export const validarEventoTecnico = async (req, res) => {
 
     const evento = eventos[0];
 
-    // 2) Creo el acta asociada (estado: pendiente_auditoria)
     const numeroActa = `ACT-${evento.id}`;
 
     const { rows: actas } = await client.query(
       `
       INSERT INTO actas (
-        numero_acta,
-        patente,
-        camara_id,
-        fecha,
-        velocidad_registrada,
-        monto,
-        estado,
-        origen,
-        fecha_registro
+        numero_acta, patente, camara_id, fecha,
+        velocidad_registrada, monto, estado, origen, fecha_registro
       )
-      VALUES (
-        $1, $2, $3,
-        $4, $5,
-        0,               -- monto inicial, lo definirá auditor/reglas
-        'pendiente_auditoria',
-        'camara',
-        NOW()
-      )
+      VALUES ($1,$2,$3,$4,$5,0,'pendiente_auditoria','camara',NOW())
       RETURNING *
       `,
       [
@@ -100,7 +89,6 @@ export const validarEventoTecnico = async (req, res) => {
 
     const acta = actas[0];
 
-    // 3) Log de la acción del técnico
     await client.query(
       `
       INSERT INTO validaciones_tecnicas (
@@ -113,11 +101,7 @@ export const validarEventoTecnico = async (req, res) => {
 
     await client.query("COMMIT");
 
-    res.json({
-      ok: true,
-      evento,
-      acta
-    });
+    res.json({ ok: true, evento, acta });
   } catch (error) {
     await client.query("ROLLBACK");
     console.error("Error validarEventoTecnico:", error);
@@ -127,7 +111,9 @@ export const validarEventoTecnico = async (req, res) => {
   }
 };
 
-// POST /api/tecnico/eventos/:id/rechazar
+// ============================================================
+// 3) RECHAZAR EVENTO
+// ============================================================
 export const rechazarEventoTecnico = async (req, res) => {
   const { id } = req.params;
   const { motivo, tecnicoId, patente } = req.body || {};
@@ -139,17 +125,16 @@ export const rechazarEventoTecnico = async (req, res) => {
     const { rows: eventos } = await client.query(
       `
       UPDATE eventos_camara
-      SET
-        estado       = 'rechazado',
-        validado_por = $2,
-        validado_en  = NOW()
-      WHERE id = $1
+      SET estado='rechazado',
+          validado_por=$2,
+          validado_en=NOW()
+      WHERE id=$1
       RETURNING *
       `,
       [id, tecnicoId || null]
     );
 
-    if (eventos.length === 0) {
+    if (!eventos.length) {
       await client.query("ROLLBACK");
       return res.status(404).json({ error: "Evento no encontrado" });
     }
@@ -161,7 +146,7 @@ export const rechazarEventoTecnico = async (req, res) => {
       INSERT INTO validaciones_tecnicas (
         evento_id, tecnico_id, accion, patente_leida, motivo
       )
-      VALUES ($1, $2, 'rechazar', $3, $4)
+      VALUES ($1,$2,'rechazar',$3,$4)
       `,
       [evento.id, tecnicoId || null, patente || evento.ocr_patente, motivo || null]
     );
