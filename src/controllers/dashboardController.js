@@ -1,7 +1,8 @@
+// src/controllers/dashboardController.js
 import pool from "../config/db.js";
 
 /* ============================================================
-   RESUMEN GENERAL PARA EL DASHBOARD
+   RESUMEN GENERAL DEL SISTEMA → PARA DASHBOARD
    ============================================================ */
 export const obtenerDashboardStats = async (req, res) => {
   try {
@@ -14,6 +15,7 @@ export const obtenerDashboardStats = async (req, res) => {
     `);
 
     return res.json(rows[0]);
+
   } catch (error) {
     console.error("Error obtenerDashboardStats:", error);
     return res.status(500).json({ error: "Error cargando estadísticas" });

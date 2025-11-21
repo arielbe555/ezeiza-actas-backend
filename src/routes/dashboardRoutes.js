@@ -7,7 +7,7 @@ const router = express.Router();
 router.get(
   "/stats",
   verificarToken,
-  requireRole("auditor", "director", "tecnico", "admin"),
+  requireRole("auditor", "admin", "director"), 
   obtenerDashboardStats
 );
 
