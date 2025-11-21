@@ -1,8 +1,14 @@
-services:
-  - type: web
-    name: ezeiza-actas-backend
-    env: node
-    plan: free
-    rootDir: .
-    buildCommand: "npm install"
-    startCommand: "node server.js"
+name: ezeiza-actas-backend
+type: web
+env: node
+
+buildCommand: "npm install"
+startCommand: "node server.js"
+
+plan: free
+
+envVars:
+  - key: NODE_ENV
+    value: production
+
+rootDir: .
