@@ -12,7 +12,7 @@ const connectionString = process.env.DATABASE_URL;
 
 if (!connectionString) {
   console.error("❌ ERROR FATAL: DATABASE_URL no está definida.");
-  console.error("👉 Configurá tu variable en Render → Environment → DATABASE_URL");
+  console.error("👉 Configurala en Render → Environment → DATABASE_URL");
   process.exit(1);
 }
 
@@ -23,21 +23,19 @@ console.log("🔵 [DB] Conectando a PostgreSQL Render...");
 // =============================================
 const pool = new Pool({
   connectionString,
-  ssl: { rejectUnauthorized: false } // Render requiere SSL
+  ssl: { rejectUnauthorized: false } // Render exige SSL
 });
 
-// Export principal
+// Export default del pool (único export principal)
 export default pool;
-export { pool };
 
 // =============================================
 //  FUNCIÓN BASE query()
-//  (DEVUELVE RESULT COMPLETO, NO SOLO ROWS)
 // =============================================
 export async function query(sql, params = []) {
   try {
     const result = await pool.query(sql, params);
-    return result; // <-- IMPORTANTE: devuelve result completo
+    return result;
   } catch (err) {
     console.error("❌ ERROR en query():", err);
     throw err;
@@ -94,7 +92,7 @@ export async function insertarActaLocal({
 }
 
 // -----------------------------
-//  ACTAS - UPERT EXTERNAS
+//  ACTAS - UPSERT EXTERNAS
 // -----------------------------
 export async function upsertActaExterna({
   numero_acta, documento, patente, fecha,
