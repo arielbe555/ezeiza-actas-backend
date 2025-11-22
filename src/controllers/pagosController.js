@@ -1,3 +1,5 @@
+// src/controllers/pagosController.js
+
 import { crearPagoActa } from "../utils/mp.js";
 
 import {
@@ -27,7 +29,7 @@ export async function crearPreferenciaPago(req, res) {
 
     const pago = await createPagoPendiente({
       actaId,
-      dni,
+      dni: dni || null,
       monto,
       mpPreferenceId: pref.id,
       mpRaw: JSON.stringify(pref)
@@ -57,10 +59,17 @@ export async function webhookMP(req, res) {
 
     const tipo = data.type || data.action;
 
+    // Verifica que MP envió los campos correctos
     if (tipo === "payment" || tipo === "updated" || tipo === "created") {
-      const mpPreferenceId = data.data.preference_id;
-      const mpStatus = data.data.status;
-      const mpPaymentId = data.data.id;
+
+      const mpPreferenceId = data?.data?.preference_id;
+      const mpStatus = data?.data?.status;
+      const mpPaymentId = data?.data?.id;
+
+      if (!mpPreferenceId) {
+        console.error("Webhook recibido sin preference_id válido");
+        return res.status(200).send("IGNORED");
+      }
 
       await updatePagoFromWebhook({
         mpPreferenceId,
@@ -82,22 +91,39 @@ export async function webhookMP(req, res) {
 // Estado por acta
 // ==========================================
 export async function estadoPagoPorActa(req, res) {
-  const { actaId } = req.params;
+  try {
+    const { actaId } = req.params;
 
-  const pago = await getPagoPendienteByActa(actaId);
+    const pago = await getPagoPendienteByActa(actaId);
 
-  if (!pago) {
-    return res.status(404).json({ ok: false, message: "Sin pagos" });
+    if (!pago) {
+      return res.status(404).json({ ok: false, message: "Sin pagos" });
+    }
+
+    return res.json({ ok: true, pago });
+
+  } catch (err) {
+    console.error("estadoPagoPorActa error:", err);
+    return res.status(500).json({ ok: false, error: "Error consultando pago" });
   }
-
-  return res.json({ ok: true, pago });
 }
 
 // ==========================================
 // Historial por DNI
 // ==========================================
 export async function historialPagosPorDni(req, res) {
-  const { dni } = req.query;
-  const pagos = await getPagosByDni(dni);
-  return res.json({ ok: true, pagos });
+  try {
+    const { dni } = req.query;
+
+    if (!dni) {
+      return res.status(400).json({ ok: false, error: "dni requerido" });
+    }
+
+    const pagos = await getPagosByDni(dni);
+    return res.json({ ok: true, pagos });
+
+  } catch (err) {
+    console.error("historialPagosPorDni error:", err);
+    return res.status(500).json({ ok: false, error: "Error obteniendo historial" });
+  }
 }
