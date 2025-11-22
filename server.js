@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import app from "./src/app.js";
+import app from "./app.js";
 
 const pdfDir = path.join(process.cwd(), "pdfs");
 if (!fs.existsSync(pdfDir)) {
