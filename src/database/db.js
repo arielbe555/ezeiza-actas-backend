@@ -21,10 +21,14 @@ console.log("🔵 [DB] Conectando a PostgreSQL Render...");
 // ============================================
 //  POOL GLOBAL
 // ============================================
-export const pool = new Pool({
+const pool = new Pool({
   connectionString,
   ssl: { rejectUnauthorized: false } // Render exige SSL
 });
+
+// 👉 LA CLAVE DEL FIX 👇
+export default pool;
+export { pool };
 
 // ============================================
 //  FUNCIÓN BASE query()
@@ -57,7 +61,7 @@ export async function getActasByPatente(patente) {
     SELECT *
     FROM actas
     WHERE patente = $1
-    ORDER BY fecha DESC;
+    ORDERORDER BY fecha DESC;
   `;
   return await query(sql, [patente]);
 }
