@@ -1,3 +1,4 @@
+// src/controllers/authController.js
 import { query } from "../database/db.js";
 import bcrypt from "bcryptjs";
 import { signToken } from "../utils/jwt.js";
@@ -11,7 +12,9 @@ export const login = async (req, res) => {
 
     // Buscar usuario activo
     const sql = `
-      SELECT id, nombre, email, password_hash, rol
+      SELECT id, nombre, email,
+             password_hash,
+             COALESCE(rol, rol_nuevo, 'desconocido') AS rol
       FROM usuarios
       WHERE email = $1 AND activo = TRUE
     `;
@@ -25,6 +28,10 @@ export const login = async (req, res) => {
     const user = result.rows[0];
 
     // Verificar password
+    if (!user.password_hash) {
+      return res.status(500).json({ error: "El usuario no tiene password_hash en DB" });
+    }
+
     const ok = await bcrypt.compare(password, user.password_hash);
 
     if (!ok) {
@@ -35,7 +42,7 @@ export const login = async (req, res) => {
     const token = signToken({
       id: user.id,
       email: user.email,
-      rol: user.rol
+      rol: user.rol,
     });
 
     return res.json({
@@ -44,12 +51,12 @@ export const login = async (req, res) => {
         id: user.id,
         nombre: user.nombre,
         email: user.email,
-        rol: user.rol
-      }
+        rol: user.rol,
+      },
     });
+
   } catch (err) {
     console.error("Error en login:", err);
     return res.status(500).json({ error: "Error interno de autenticación" });
   }
 };
-
