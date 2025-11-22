@@ -3,8 +3,7 @@ import fs from "fs";
 import path from "path";
 import nodemailer from "nodemailer";
 // src/controllers/pdfActaController.js
-import pool from "../database/db.js";
-
+import { pool } from "../database/db.js";
 import { generarPdfActa } from "../utils/pdfActaService.js";
 
 const pdfDir = path.join(process.cwd(), "pdfs");
