@@ -1,37 +1,30 @@
-import express from "expimport axios from "axios";
+import express from "express";
+import cors from "cors";
 
-const api = axios.create({
-  baseURL:
-    import.meta.env.VITE_API_URL ||
-    "https://ezeiza-actas-backend.onrender.com/api",
-  timeout: 15000,
-});
+import { verificarToken } from "./middlewares/authMiddleware.js";
 
-// ======================================================
-// LOGIN
-// ======================================================
-export const loginAuditor = (usuario, password) =>
-  api.post("/auth/login", { usuario, password });
+import infraccionesRoutes from "./routes/infraccionesRoutes.js";
+import pagosRoutes from "./routes/pagosRoutes.js";
+import scrapRoutes from "./routes/scrap.js";
+import tecnicoRoutes from "./routes/tecnicoRoutes.js";
+import auditorRoutes from "./routes/auditorRoutes.js";
+import dashboardRoutes from "./routes/dashboardRoutes.js";
+import pdfRoutes from "./routes/pdfRoutes.js";
 
-// ======================================================
-// AUDITOR
-// ======================================================
-export const fetchPendientesAuditor = () =>
-  api.get("/auditor/pendientes");
+const app = express();
 
-export const fetchActaById = (id) =>
-  api.get(`/auditor/${id}`);
+app.use(cors());
+app.use(express.json());
 
-export const validarActa = (id, payload = {}) =>
-  api.post(`/auditor/${id}/aprobar`, payload);
+// Rutas públicas
+app.use("/api/scraper", scrapRoutes);
+app.use("/api/pagos", pagosRoutes);
+app.use("/api/pdf", pdfRoutes);
 
-export const rechazarActa = (id, motivo) =>
-  api.post(`/auditor/${id}/rechazar`, { motivo });
+// Rutas protegidas
+app.use("/api/infracciones", verificarToken, infraccionesRoutes);
+app.use("/api/tecnico", verificarToken, tecnicoRoutes);
+app.use("/api/auditor", verificarToken, auditorRoutes);
+app.use("/api/dashboard", verificarToken, dashboardRoutes);
 
-// ======================================================
-// PAGOS
-// ======================================================
-export const generarLinkPago = (id) =>
-  api.post(`/pagos/generar/${id}`);
-
-export default api;
+export default app;
