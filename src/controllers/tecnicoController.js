@@ -1,5 +1,5 @@
 // src/controllers/tecnicoController.js
-import { pool } from "../database/db.js";
+import pool from "../database/db.js";
 
 // ============================================================
 // 1) LISTAR EVENTOS (técnico)
@@ -66,7 +66,6 @@ export const validarEventoTecnico = async (req, res) => {
     }
 
     const evento = eventos[0];
-
     const numeroActa = `ACT-${evento.id}`;
 
     const { rows: actas } = await client.query(
