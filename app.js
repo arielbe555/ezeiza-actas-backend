@@ -6,6 +6,7 @@ import cors from "cors";
 import { verificarToken } from "./src/middlewares/authMiddleware.js";
 
 // Rutas
+import authRoutes from "./src/routes/authRoutes.js";                 // 🔥 FALTA EN TU PROYECTO
 import infraccionesRoutes from "./src/routes/infraccionesRoutes.js";
 import pagosRoutes from "./src/routes/pagosRoutes.js";
 import scrapRoutes from "./src/routes/scrap.js";
@@ -21,14 +22,15 @@ app.use(cors());
 app.use(express.json());
 
 // ----------------------------------------------
-// Rutas públicas
+// RUTAS PÚBLICAS
 // ----------------------------------------------
+app.use("/api/auth", authRoutes);        // 👈 NECESARIO PARA LOGIN
 app.use("/api/scraper", scrapRoutes);
 app.use("/api/pagos", pagosRoutes);
 app.use("/api/pdf", pdfRoutes);
 
 // ----------------------------------------------
-// Rutas protegidas
+// RUTAS PROTEGIDAS
 // ----------------------------------------------
 app.use("/api/infracciones", verificarToken, infraccionesRoutes);
 app.use("/api/tecnico", verificarToken, tecnicoRoutes);
