@@ -1,5 +1,5 @@
 // src/controllers/dashboardController.js
-import { pool } from "../database/db.js";
+import  pool  from "../database/db.js";
 
 /* ============================================================
    RESUMEN GENERAL DEL SISTEMA → PARA DASHBOARD
