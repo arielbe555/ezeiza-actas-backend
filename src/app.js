@@ -1,3 +1,4 @@
+// src/app.js
 import express from "express";
 import cors from "cors";
 
@@ -16,12 +17,16 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// =============================
 // Rutas públicas
+// =============================
 app.use("/api/scraper", scrapRoutes);
 app.use("/api/pagos", pagosRoutes);
 app.use("/api/pdf", pdfRoutes);
 
-// Rutas protegidas
+// =============================
+// Rutas protegidas (requieren JWT)
+// =============================
 app.use("/api/infracciones", verificarToken, infraccionesRoutes);
 app.use("/api/tecnico", verificarToken, tecnicoRoutes);
 app.use("/api/auditor", verificarToken, auditorRoutes);
