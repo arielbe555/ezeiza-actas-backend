@@ -1,0 +1,1 @@
+GET https://consulta-ezeiza.infratrack.com.ar/infracciones/a-pagar?tipo=DOMINIO&consulta=PMB075&g-recaptcha-response=
