@@ -12,8 +12,8 @@ const router = express.Router();
  * 📌 Consulta Ciudadana 5.0
  * GET /consulta?tipo=patente|dni|cuit&valor=XXXX
  *
- * Patente: consulta real (DB + Infratrack).
- * DNI/CUIT: estructura estable y escalable (listo para conectar).
+ * Patente: consulta real (DB + Infratrack)
+ * DNI/CUIT: estructura estable y escalable (placeholder estable)
  */
 router.get("/", async (req, res) => {
   const { tipo, valor } = req.query;
@@ -27,13 +27,10 @@ router.get("/", async (req, res) => {
 
   const tipoNormalizado = String(tipo).toLowerCase();
 
-  // Objeto base de respuesta
+  // Respuesta base homogénea GovTech 5.0
   const respuesta = {
     ok: true,
-    criterio: {
-      tipo: tipoNormalizado,
-      valor
-    },
+    criterio: { tipo: tipoNormalizado, valor },
     fuentes: {
       propias: 0,
       infratrack: 0
@@ -47,34 +44,29 @@ router.get("/", async (req, res) => {
   try {
     switch (tipoNormalizado) {
       /**
-       * 🔵 BÚSQUEDA POR DOMINIO (caso principal)
-       * - Buscamos primero en nuestras actas internas (DB)
-       * - Luego consultamos a Infratrack Ezeiza
+       * 🔵 DOMINIO (patente)
        */
       case "patente": {
         const dominio = valor.toUpperCase().trim();
 
-        // 1) Actas propias
+        // 1) Actas propias locales
         const actasPropias = await getActasByPatente(dominio);
 
-        // 2) Infratrack (externo)
+        // 2) Actas externas (Infratrack)
         const dataInfratrack = await consultarInfratrack("DOMINIO", dominio);
         const actasExternas = mapInfraccionesExternas(dataInfratrack.infracciones);
 
-        // Cargar a la respuesta final
         respuesta.fuentes.propias = actasPropias.length;
         respuesta.fuentes.infratrack = actasExternas.length;
-
         respuesta.datos.propias = actasPropias;
         respuesta.datos.infratrack = actasExternas;
-
-        // Info adicional útil
         respuesta.meta = dataInfratrack.meta;
+
         break;
       }
 
       /**
-       * 🔵 BÚSQUEDA POR PERSONA (placeholder estable)
+       * 🔵 DNI / CUIT (placeholder estable)
        */
       case "dni":
       case "cuit": {
@@ -95,16 +87,23 @@ router.get("/", async (req, res) => {
 
     return res.json(respuesta);
   } catch (error) {
-    console.error("ERROR consulta ciudadana:", error);
+    console.error(
+      "🛑 ERROR consulta ciudadana:",
+      "\nMensaje:", error?.message,
+      "\nStatus:", error?.response?.status,
+      "\nData:", error?.response?.data,
+      "\nStack:", error?.stack
+    );
+
     return res.status(500).json({
       ok: false,
-      error: "Error procesando la consulta ciudadana"
+      error: error?.message || "Error procesando la consulta ciudadana"
     });
   }
 });
 
 /**
- * 📌 Compatibilidad con la versión anterior del sistema:
+ * 📌 Compatibilidad con versión histórica
  * GET /consulta/patente/:patente
  */
 router.get("/patente/:patente", async (req, res) => {
@@ -131,10 +130,17 @@ router.get("/patente/:patente", async (req, res) => {
       }
     });
   } catch (error) {
-    console.error("ERROR consulta patente simple:", error);
+    console.error(
+      "🛑 ERROR consulta patente simple:",
+      "\nMensaje:", error?.message,
+      "\nStatus:", error?.response?.status,
+      "\nData:", error?.response?.data,
+      "\nStack:", error?.stack
+    );
+
     return res.status(500).json({
       ok: false,
-      error: "Error interno consultando por patente"
+      error: error?.message || "Error interno consultando por patente"
     });
   }
 });
