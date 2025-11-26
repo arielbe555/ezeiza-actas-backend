@@ -2,53 +2,39 @@
 import axios from "axios";
 import { ENV } from "../config/env.js";
 
-// ==============================
-// CUIT
-// ==============================
+function buildUrl(tipo, consulta) {
+  return `${ENV.INFRA_EZEIZA_URL}?tipo=${tipo}&consulta=${consulta}&g-recaptcha-response=`;
+}
+
+async function ejecutarConsulta(tipo, consulta) {
+  const url = buildUrl(tipo, consulta);
+
+  console.log("🔎 Llamando a Infratrack:", url);
+
+  const { data } = await axios.get(url, {
+    headers: {
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+      "Accept": "application/json, text/javascript, */*;q=0.01",
+      "X-Requested-With": "XMLHttpRequest",
+      "Referer": "https://consulta-web.infratrack.com.ar/index.php?municipio=ezeiza"
+    },
+    timeout: 15000
+  });
+
+  return {
+    meta: data,
+    infracciones: Object.values(data.infracciones || {})
+  };
+}
+
 export async function consultarInfratrackPorCuit(cuit) {
-  const url = `${ENV.INFRA_EZEIZA_URL}?tipo=CUIT&consulta=${cuit}&g-recaptcha-response=`;
-
-  const { data } = await axios.get(url, {
-    headers: {
-      "User-Agent": "Mozilla/5.0",
-      Accept: "application/json, text/javascript, */*;q=0.9"
-    },
-    timeout: 20000
-  });
-
-  const infracciones = Object.values(data.infracciones || {});
-
-  return {
-    meta: data,
-    infracciones
-  };
+  return ejecutarConsulta("CUIT", cuit);
 }
 
-// ==============================
-// PATENTE
-// ==============================
 export async function consultarInfratrackPorPatente(patente) {
-  const url = `${ENV.INFRA_EZEIZA_URL}?tipo=DOMINIO&consulta=${patente}&g-recaptcha-response=`;
-
-  const { data } = await axios.get(url, {
-    headers: {
-      "User-Agent": "Mozilla/5.0",
-      Accept: "application/json, text/javascript, */*;q=0.9"
-    },
-    timeout: 20000
-  });
-
-  const infracciones = Object.values(data.infracciones || {});
-
-  return {
-    meta: data,
-    infracciones
-  };
+  return ejecutarConsulta("DOMINIO", patente);
 }
 
-// ==============================
-// MAPEO
-// ==============================
 export function mapInfraccionesExternas(infracciones) {
   return infracciones.map((inf) => ({
     origen: "externa",
@@ -57,8 +43,7 @@ export function mapInfraccionesExternas(infracciones) {
     acta: inf.acta,
     estado: inf.estado,
     descripcion: inf.descripcion,
-    monto_total: inf.monto_total_float || 0,
-    monto_float: inf.monto_float || 0,
+    monto_total: inf.monto_total_float || inf.monto_float || 0,
     raw: inf
   }));
 }
