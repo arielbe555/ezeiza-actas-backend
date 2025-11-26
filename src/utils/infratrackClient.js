@@ -2,61 +2,63 @@
 import axios from "axios";
 import { ENV } from "../config/env.js";
 
-export async function consultarInfratrack(tipo, consulta) {
-  if (!ENV.INFRA_EZEIZA_URL) {
-    throw new Error("INFRA_EZEIZA_URL no está definida.");
-  }
+// ==============================
+// CUIT
+// ==============================
+export async function consultarInfratrackPorCuit(cuit) {
+  const url = `${ENV.INFRA_EZEIZA_URL}?tipo=CUIT&consulta=${cuit}&g-recaptcha-response=`;
 
-  const params = new URLSearchParams({
-    tipo,
-    consulta,
-    municipio: "ezeiza",
-    "g-recaptcha-response": ""
+  const { data } = await axios.get(url, {
+    headers: {
+      "User-Agent": "Mozilla/5.0",
+      Accept: "application/json, text/javascript, */*;q=0.9"
+    },
+    timeout: 20000
   });
 
-  const url = `${ENV.INFRA_EZEIZA_URL}?${params.toString()}`;
+  const infracciones = Object.values(data.infracciones || {});
 
-  console.log("🔎 URL SCRAP:", url);
-
-  try {
-    const { data } = await axios.get(url, {
-      headers: {
-        "User-Agent": "Mozilla/5.0",
-        Accept: "application/json, text/javascript, */*;q=0.9"
-      },
-      timeout: 15000
-    });
-
-    const infracciones = Array.isArray(data.infracciones)
-      ? data.infracciones
-      : data.infracciones?.data || [];
-
-    return {
-      meta: data,
-      infracciones
-    };
-  } catch (error) {
-    console.error("🛑 ERROR SCRAP:", error?.message);
-    throw error;
-  }
+  return {
+    meta: data,
+    infracciones
+  };
 }
 
+// ==============================
+// PATENTE
+// ==============================
+export async function consultarInfratrackPorPatente(patente) {
+  const url = `${ENV.INFRA_EZEIZA_URL}?tipo=DOMINIO&consulta=${patente}&g-recaptcha-response=`;
+
+  const { data } = await axios.get(url, {
+    headers: {
+      "User-Agent": "Mozilla/5.0",
+      Accept: "application/json, text/javascript, */*;q=0.9"
+    },
+    timeout: 20000
+  });
+
+  const infracciones = Object.values(data.infracciones || {});
+
+  return {
+    meta: data,
+    infracciones
+  };
+}
+
+// ==============================
+// MAPEO
+// ==============================
 export function mapInfraccionesExternas(infracciones) {
   return infracciones.map((inf) => ({
     origen: "externa",
     proveedor: "infratrack_ezeiza",
     id_externo: inf.id,
-    numero_acta: inf.acta,
+    acta: inf.acta,
     estado: inf.estado,
     descripcion: inf.descripcion,
-    monto_total: inf.monto_total_float ?? inf.monto_float ?? 0,
-    monto_voluntario: inf.monto_float ?? null,
-    pago_voluntario_texto: inf.pago_voluntario ?? null,
-    fecha: inf.fecha ?? null,
-    fecha_vencimiento: inf.fecha_vencimiento ?? null,
-    lugar: inf.lugar ?? null,
-    pago_link: inf.pago_link,
-    imprimir_link: inf.imprimir_link,
+    monto_total: inf.monto_total_float || 0,
+    monto_float: inf.monto_float || 0,
     raw: inf
   }));
 }
