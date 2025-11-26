@@ -2,22 +2,21 @@
 import express from "express";
 import { getActasByPatente } from "../database/db.js";
 import {
-  consultarInfratrack,
+  consultarInfratrackPorCuit,
+  consultarInfratrackPorPatente,
   mapInfraccionesExternas
 } from "../utils/infratrackClient.js";
 
 const router = express.Router();
 
 /**
- * ======================================================
- *        CONSULTA CIUDADANA 7.0 (COMPLETA)
- * ======================================================
+ * ================================
+ *  CONSULTA CIUDADANA 7.0
+ * ================================
  *
- * GET /consulta?tipo=patente&valor=XXX
- * GET /consulta?tipo=dni&valor=12345678
- * GET /consulta?tipo=cuit&valor=20301234567
- *
- * Devuelve datos locales + externos, normalizados.
+ * /consulta?tipo=patente&valor=AF687OU
+ * /consulta?tipo=cuit&valor=30999001005
+ * /consulta?tipo=dni&valor=12345678  (placeholder)
  */
 router.get("/", async (req, res) => {
   const { tipo, valor } = req.query;
@@ -29,108 +28,93 @@ router.get("/", async (req, res) => {
     });
   }
 
-  const tipoNormalizado = String(tipo).toLowerCase();
-  const cleanValor = String(valor).trim();
+  const tipoNormalizado = String(tipo).toLowerCase().trim();
+  const valorLimpio = String(valor).trim();
 
-  // Respuesta base homogénea
   const respuesta = {
     ok: true,
-    criterio: { tipo: tipoNormalizado, valor: cleanValor },
+    criterio: { tipo: tipoNormalizado, valor: valorLimpio },
     fuentes: { propias: 0, infratrack: 0 },
-    datos: { propias: [], infratrack: [] },
-    meta: {}
+    datos: { propias: [], infratrack: [] }
   };
 
   try {
     switch (tipoNormalizado) {
-
       /**
-       * =====================================================
-       *            🔵 CONSULTA POR PATENTE
-       * =====================================================
+       * 🔵 CONSULTA POR PATENTE
        */
       case "patente": {
-        const dominio = cleanValor.toUpperCase();
+        const dominio = valorLimpio.toUpperCase();
 
-        // 1️⃣ Actas propias
         const actasPropias = await getActasByPatente(dominio);
+        const infra = await consultarInfratrackPorPatente(dominio);
 
-        // 2️⃣ Actas Infratrack
-        const dataInfratrack = await consultarInfratrack("DOMINIO", dominio);
-        const actasExternas = mapInfraccionesExternas(dataInfratrack.infracciones);
+        const actasExternas = mapInfraccionesExternas(infra.infracciones);
 
         respuesta.fuentes.propias = actasPropias.length;
         respuesta.fuentes.infratrack = actasExternas.length;
+
         respuesta.datos.propias = actasPropias;
         respuesta.datos.infratrack = actasExternas;
-        respuesta.meta = {
-          ...dataInfratrack.meta,
-          total_general: actasPropias.length + actasExternas.length
-        };
 
+        respuesta.meta = infra.meta;
         break;
       }
 
       /**
-       * =====================================================
-       *        🔵 CONSULTA POR DNI / CUIT (SCRAP REAL)
-       * =====================================================
+       * 🔵 CONSULTA POR CUIT (FUNCIONA PERFECTO)
        */
-      case "dni":
       case "cuit": {
-        const documento = cleanValor;
+        const infra = await consultarInfratrackPorCuit(valorLimpio);
 
-        const dataInfratrack = await consultarInfratrack("DOCUMENTO", documento);
-        const actasExternas = mapInfraccionesExternas(dataInfratrack.infracciones);
+        const actasExternas = mapInfraccionesExternas(infra.infracciones);
 
         respuesta.fuentes.infratrack = actasExternas.length;
         respuesta.datos.infratrack = actasExternas;
-        respuesta.meta = {
-          ...dataInfratrack.meta,
-          total_general: actasExternas.length
-        };
+        respuesta.meta = infra.meta;
+        break;
+      }
 
+      /**
+       * 🔵 Placeholder DNI
+       */
+      case "dni": {
+        respuesta.meta = {
+          nota: "La búsqueda por DNI está lista para conectar a DB."
+        };
         break;
       }
 
       default:
         return res.status(400).json({
           ok: false,
-          error: "Tipo inválido. Use: patente | dni | cuit"
+          error: "Tipo inválido. Use: patente | cuit | dni"
         });
     }
 
     return res.json(respuesta);
-
   } catch (error) {
-    console.error(
-      "🛑 ERROR consulta 7.0:",
-      "\nMensaje:", error?.message,
-      "\nStatus:", error?.response?.status,
-      "\nData:", error?.response?.data,
-      "\nStack:", error?.stack
-    );
+    console.error("🛑 ERROR consulta:", error.message);
 
     return res.status(500).json({
       ok: false,
-      error: error?.message || "Error interno procesando la consulta"
+      error: error.message || "Error procesando la consulta"
     });
   }
 });
 
-
 /**
- * =====================================================
- *     RUTA LEGACY (COMPATIBILIDAD HISTÓRICA)
- * =====================================================
+ * ================================
+ *  ENDPOINT COMPATIBLE ANTERIOR
+ * ================================
  */
 router.get("/patente/:patente", async (req, res) => {
   try {
-    const dominio = req.params.patente.toUpperCase().trim();
+    const dominio = req.params.patente.toUpperCase();
 
     const actasPropias = await getActasByPatente(dominio);
-    const dataInfratrack = await consultarInfratrack("DOMINIO", dominio);
-    const actasExternas = mapInfraccionesExternas(dataInfratrack.infracciones);
+    const infra = await consultarInfratrackPorPatente(dominio);
+    const actasExternas = mapInfraccionesExternas(infra.infracciones);
 
     return res.json({
       ok: true,
@@ -139,24 +123,16 @@ router.get("/patente/:patente", async (req, res) => {
         propias: actasPropias.length,
         infratrack: actasExternas.length
       },
-      meta: {
-        ...dataInfratrack.meta,
-        total_general: actasPropias.length + actasExternas.length
-      },
+      meta: infra.meta,
       datos: {
         propias: actasPropias,
         infratrack: actasExternas
       }
     });
   } catch (error) {
-    console.error(
-      "🛑 ERROR consulta legacy:",
-      error?.message
-    );
-
     return res.status(500).json({
       ok: false,
-      error: error?.message || "Error consultando patente"
+      error: error.message
     });
   }
 });
